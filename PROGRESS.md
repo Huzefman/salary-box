@@ -44,4 +44,11 @@ department/designation CRUD, employee CRUD P0, sidebar shell)
   instead of `upstream` (`Huzefman/salary-box`) — no push access to upstream.
 
 ## Known Issues
-- None.
+- `origin/main` (fitmantramarketing-sys/salary-box) was reverted to a
+  pre-scaffold state by commit `04bbe85` ("Merge pull request #1 from
+  Huzefman/main"), which merged `upstream/main` (no scaffold) into the fork's
+  `main`. `origin/main` currently does not contain the scaffold — local
+  `main`/`dev`/`feature/auth-rbac` and `origin/feature/auth-rbac` are correct
+  and unaffected. Decided 2026-06-10: leave `origin/main` as-is for now and
+  reconcile when `dev` is merged into `main` at milestone completion (avoid an
+  unreviewed force-push to a shared branch).
