@@ -109,6 +109,13 @@ dump.sql
 *.dump
 
 # ---------------------------
+# Supabase CLI
+# ---------------------------
+supabase/.temp/
+supabase/.branches/
+supabase/functions/.env
+
+# ---------------------------
 # Editor / IDE
 # ---------------------------
 .vscode/settings.json
