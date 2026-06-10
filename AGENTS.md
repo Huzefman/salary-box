@@ -33,7 +33,13 @@ ENV.md set up.
 Next task: M1 — write the initial SQL migration covering all 24 tables
 (`docs/DATABASE_SCHEMA.md`), then RLS policies per role (`docs/ROLE_RULES.md`),
 then wire up the real auth flow (login / set-password) and `useAuth` / `useRole`.
-Known issues: none.
+Known issues: `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
+reverted to a pre-scaffold state by a PR merge from `upstream/main`
+(`04bbe85`, "Merge pull request #1 from Huzefman/main") — it currently does
+NOT have the scaffold. Local `main`/`dev`/`feature/auth-rbac` and
+`origin/feature/auth-rbac` all have the full scaffold and are correct.
+Do not push local `main` to `origin/main` without reconciling this — resolve
+when `dev` merges into `main` at milestone completion (see PROGRESS.md).
 
 ## Roles (4 only)
 `owner`, `hr`, `employee`, `system_admin` — see `docs/ROLE_RULES.md` for the
