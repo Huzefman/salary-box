@@ -223,6 +223,12 @@ npm run typecheck
 npm run lint
 ```
 
+> **Agent note:** a project-scoped Supabase MCP server may also be connected
+> (`.mcp.json`, token-based, see `AGENTS.md` → "Supabase project access").
+> When connected, prefer it for inspecting/migrating the live project
+> (`hqiggiqwyxjiltltvoay`) in environments without a local Docker/Supabase
+> CLI stack. Keep `supabase/migrations/*.sql` as the source of truth either way.
+
 ---
 
 ## Build Order (Milestones)

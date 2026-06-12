@@ -1,7 +1,7 @@
 # Progress Log
 
 ## Current State
-Date: 2026-06-10
+Date: 2026-06-12
 Active branch: feature/auth-rbac
 Milestone: M1 — Foundation (Supabase setup, migrations, RLS, auth, RBAC,
 department/designation CRUD, employee CRUD P0, sidebar shell)
@@ -23,6 +23,11 @@ department/designation CRUD, employee CRUD P0, sidebar shell)
 - `main` / `dev` / `feature/auth-rbac` branch structure created;
   `main` re-pointed to track `origin/main`
 - AGENTS.md, PROGRESS.md, CONVENTIONS.md, ENV.md added at repo root
+- Supabase MCP server connected: project-scoped `.mcp.json` running
+  `@supabase/mcp-server-supabase` via npx, authenticated with a personal
+  access token (`SUPABASE_ACCESS_TOKEN`, local Windows user env var, never
+  committed). Verified live access to project `hqiggiqwyxjiltltvoay`
+  (HR Tool) — database currently empty, ready for the initial migration.
 
 ## In Progress
 - Nothing yet beyond the scaffold above on `feature/auth-rbac`.
@@ -42,6 +47,10 @@ department/designation CRUD, employee CRUD P0, sidebar shell)
   build sequentially M1 → M5.
 - 2026-06-10: `main` re-pointed to track `origin` (`fitmantramarketing-sys/salary-box`)
   instead of `upstream` (`Huzefman/salary-box`) — no push access to upstream.
+- 2026-06-12: Used a PAT-based local Supabase MCP server (`.mcp.json` +
+  `${SUPABASE_ACCESS_TOKEN}`) instead of the "claude.ai Supabase" OAuth
+  connector — the OAuth connector kept authenticating against the wrong
+  Supabase account (cross-Google-account mismatch) with no way to redirect it.
 
 ## Known Issues
 - `origin/main` (fitmantramarketing-sys/salary-box) was reverted to a

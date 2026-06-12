@@ -21,7 +21,7 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-10
+Last updated: 2026-06-12
 Active branch: feature/auth-rbac
 Just completed: Full repo scaffold — Vite + React + TS frontend, route tree,
 role guards, layout shell, feature-folder structure for all 6 domains, Supabase
@@ -29,7 +29,9 @@ project structure, stub `index.ts` for all 36 Edge Functions (21 client-callable
 + 15 cron), `.env.example` / `.gitignore` updated for Supabase. Repo passes
 `npm run typecheck`, `npm run lint`, and `npm run dev`. Branch strategy
 (`main` / `dev` / `feature/*`) and AGENTS.md / PROGRESS.md / CONVENTIONS.md /
-ENV.md set up.
+ENV.md set up. Supabase MCP server connected (see "Supabase project access"
+below) — verified live access to project `hqiggiqwyxjiltltvoay` (HR Tool),
+database currently empty (no tables/migrations yet).
 Next task: M1 — write the initial SQL migration covering all 24 tables
 (`docs/DATABASE_SCHEMA.md`), then RLS policies per role (`docs/ROLE_RULES.md`),
 then wire up the real auth flow (login / set-password) and `useAuth` / `useRole`.
@@ -40,6 +42,29 @@ NOT have the scaffold. Local `main`/`dev`/`feature/auth-rbac` and
 `origin/feature/auth-rbac` all have the full scaffold and are correct.
 Do not push local `main` to `origin/main` without reconciling this — resolve
 when `dev` merges into `main` at milestone completion (see PROGRESS.md).
+
+## Supabase project access (for agents)
+This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,
+authenticated via a personal access token (`SUPABASE_ACCESS_TOKEN`, set as a
+local Windows user environment variable — never committed). When connected,
+the `mcp__supabase__*` tools give direct access to project
+`hqiggiqwyxjiltltvoay` (the HR Tool project):
+
+- `list_tables`, `list_migrations`, `list_extensions`, `get_advisors`,
+  `get_logs`, `get_project_url` — inspection, always safe to call.
+- `apply_migration` — applies SQL directly to this remote project and records
+  it in the project's migration history. Workflow: write the SQL file to
+  `supabase/migrations/<NNNN>_<name>.sql` first (for version control), then
+  call `apply_migration` with the same name/content so local files and the
+  remote project stay in sync.
+- `execute_sql` — ad-hoc queries for inspection/debugging only. Don't use it
+  for schema changes that should be migrations.
+- `generate_typescript_types` — regenerate `src/types/database.types.ts`
+  after schema changes (re-add `Relationships: [...]` per table if missing —
+  see PROGRESS.md decisions).
+
+If the MCP server isn't connected in a session, say so and fall back to
+writing the migration SQL for the user to apply.
 
 ## Roles (4 only)
 `owner`, `hr`, `employee`, `system_admin` — see `docs/ROLE_RULES.md` for the

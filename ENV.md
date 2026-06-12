@@ -22,6 +22,11 @@ Only variables prefixed `VITE_` are available in frontend code
 | `RESEND_API_KEY` | Transactional email via `_shared/email.ts` |
 | `APP_ENV` | `development` \| `production` |
 
+## Agent tooling (not used by the app)
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | Personal access token for the Supabase MCP server (`.mcp.json`, project-scoped to `hqiggiqwyxjiltltvoay`). Set as a Windows **user environment variable** — never in any `.env` file, never read by the app. Used only by AI agent tooling to inspect/manage schema, migrations, and RLS. |
+
 ## Adding a new variable
 1. Add it to `.env.example` with a placeholder value.
 2. Add a row to the appropriate table above with a one-line description.
