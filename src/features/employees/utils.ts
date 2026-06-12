@@ -7,8 +7,10 @@ export function getEmployeeFullName(employee: Pick<Employee, 'first_name' | 'las
 export function getEmploymentStatusLabel(status: Employee['employment_status']): string {
   const labels: Record<Employee['employment_status'], string> = {
     active: 'Active',
-    inactive: 'Inactive',
+    on_probation: 'On Probation',
+    resigned: 'Resigned',
     terminated: 'Terminated',
+    on_leave: 'On Leave',
     future_joiner: 'Future Joiner',
   }
   return labels[status] ?? status

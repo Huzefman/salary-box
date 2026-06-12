@@ -23,18 +23,28 @@ inventing an answer.
 ## Current status — UPDATE THIS EVERY SESSION
 Last updated: 2026-06-12
 Active branch: feature/auth-rbac
-Just completed: Full repo scaffold — Vite + React + TS frontend, route tree,
-role guards, layout shell, feature-folder structure for all 6 domains, Supabase
-project structure, stub `index.ts` for all 36 Edge Functions (21 client-callable
-+ 15 cron), `.env.example` / `.gitignore` updated for Supabase. Repo passes
-`npm run typecheck`, `npm run lint`, and `npm run dev`. Branch strategy
-(`main` / `dev` / `feature/*`) and AGENTS.md / PROGRESS.md / CONVENTIONS.md /
-ENV.md set up. Supabase MCP server connected (see "Supabase project access"
-below) — verified live access to project `hqiggiqwyxjiltltvoay` (HR Tool),
-database currently empty (no tables/migrations yet).
-Next task: M1 — write the initial SQL migration covering all 24 tables
-(`docs/DATABASE_SCHEMA.md`), then RLS policies per role (`docs/ROLE_RULES.md`),
-then wire up the real auth flow (login / set-password) and `useAuth` / `useRole`.
+Just completed: M1 schema + RLS migration. Applied `supabase/migrations/0001`–
+`0008` to project `hqiggiqwyxjiltltvoay`, covering all 24 tables from
+`docs/DATABASE_SCHEMA.md` with RLS policies per `docs/ROLE_RULES.md`,
+`get_my_role()` / `get_my_employee_id()` helper functions, `set_updated_at()`
+trigger, the 4 field-level/transition enforcement triggers
+(`enforce_employee_update`, `enforce_document_softdelete`,
+`enforce_attendance_timestamps`, `enforce_leave_application_update`), and the
+`log_changes()` audit trigger on 21 tables. Migration 0008 fixed all
+addressable `get_advisors` WARNs (`function_search_path_mutable` on 5
+functions, `auth_rls_initplan` on 3 policies) with no behavioral changes.
+RLS spot-checked (anon sees 0 rows, `get_my_role()`/`get_my_employee_id()`
+return null for anon). Regenerated `src/types/database.types.ts` and fixed 4
+files with placeholder code that no longer matched the real schema
+(`employees/utils.ts`, `employees/schemas.ts`, `settings/api.ts`,
+`settings/mutations.ts`). `npm run typecheck` passes clean. Full details in
+PROGRESS.md.
+Next task: Auth flow — login page, set-password flow, session handling, and
+real RBAC wiring for `useAuth` / `useRole` (currently scaffolded only). Includes
+bootstrapping the first Owner `employees` row + linked `auth.users` account
+(service-role / elevated privileges, since `employees` INSERT requires
+`get_my_role() = 'owner'`). Department/designation CRUD, employee CRUD, and
+sidebar wiring (also pending for M1) depend on this and come after.
 Known issues: `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
 reverted to a pre-scaffold state by a PR merge from `upstream/main`
 (`04bbe85`, "Merge pull request #1 from Huzefman/main") — it currently does
@@ -60,8 +70,8 @@ the `mcp__supabase__*` tools give direct access to project
 - `execute_sql` — ad-hoc queries for inspection/debugging only. Don't use it
   for schema changes that should be migrations.
 - `generate_typescript_types` — regenerate `src/types/database.types.ts`
-  after schema changes (re-add `Relationships: [...]` per table if missing —
-  see PROGRESS.md decisions).
+  after schema changes. The current generator (PostgrestVersion 14.5) already
+  includes `Relationships: [...]` per table automatically.
 
 If the MCP server isn't connected in a session, say so and fall back to
 writing the migration SQL for the user to apply.

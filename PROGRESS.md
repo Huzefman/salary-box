@@ -28,14 +28,56 @@ department/designation CRUD, employee CRUD P0, sidebar shell)
   access token (`SUPABASE_ACCESS_TOKEN`, local Windows user env var, never
   committed). Verified live access to project `hqiggiqwyxjiltltvoay`
   (HR Tool) — database currently empty, ready for the initial migration.
+- Initial SQL migration covering all 24 tables (`docs/DATABASE_SCHEMA.md`) and
+  RLS policies per table per role (`docs/ROLE_RULES.md`), applied to project
+  `hqiggiqwyxjiltltvoay` as `supabase/migrations/0001`–`0008`:
+  - `0001_enums` — all 10 enum types.
+  - `0002_core` — departments, designations, employees;
+    `get_my_role()` / `get_my_employee_id()` helpers; `set_updated_at()`
+    trigger; `enforce_employee_update()` field-level trigger; RLS for all 3.
+  - `0003_employee_detail` — employee_documents, employee_bank_details,
+    employee_lifecycle_events, onboarding_checklist_templates,
+    employee_onboarding_progress + RLS + `enforce_document_softdelete()`.
+  - `0004_shift_attendance` — shifts, department_shifts,
+    employee_shift_overrides, attendance_records,
+    attendance_regularization_requests + RLS + `enforce_attendance_timestamps()`.
+  - `0005_leave` — leave_types, leave_balances, leave_applications, holidays,
+    comp_off_requests, employee_optional_holidays + RLS +
+    `enforce_leave_application_update()`.
+  - `0006_admin` — ip_whitelist, geofence_config, notifications, audit_logs,
+    app_config + RLS + seeded `app_config` defaults (6 keys, matches `seed.sql`).
+  - `0007_audit_triggers` — `log_changes()` SECURITY DEFINER trigger, attached
+    to the 21 tables per DATABASE_SCHEMA.md "Trigger Requirements".
+  - `0008_security_hardening` — added `set search_path = public` to the 5
+    plpgsql trigger functions from 0002–0005 (fixes
+    `function_search_path_mutable` advisor WARNs); rewrote `employees_select`,
+    `employees_update`, `department_shifts_select` to use
+    `(select auth.uid())` (fixes `auth_rls_initplan` advisor WARNs). No
+    behavioral changes.
+  - Verified via `get_advisors`: no RLS-disabled or missing-required-index
+    findings; remaining advisories are either intentional
+    (`get_my_role`/`get_my_employee_id` RPC exposure, `log_changes`/
+    `rls_auto_enable` trigger functions) or out-of-spec INFO items
+    (unindexed FKs not listed in DATABASE_SCHEMA.md, unused indexes on
+    currently-empty tables).
+  - RLS spot-check: `anon` role sees 0 rows of `app_config` (6 rows visible to
+    a privileged connection); `get_my_role()`/`get_my_employee_id()` return
+    `null` for `anon`.
+  - Regenerated `src/types/database.types.ts` via
+    `generate_typescript_types` (includes `Relationships: [...]` per table).
+    Fixed 3 resulting `npm run typecheck` mismatches against placeholder
+    feature code: `getEmploymentStatusLabel` (added missing
+    `employment_status` enum values), `fetchHolidays` (removed
+    non-existent `holidays.is_active` filter), `useCreateDepartment` /
+    `departmentSchema` (removed non-existent `departments.description` field,
+    added real `parent_id`). `npm run typecheck` passes clean.
 
 ## In Progress
-- Nothing yet beyond the scaffold above on `feature/auth-rbac`.
+- Nothing yet beyond the above on `feature/auth-rbac`.
 
 ## Pending (this milestone — M1)
-- Initial SQL migration covering all 24 tables (`docs/DATABASE_SCHEMA.md`)
-- RLS policies per table per role (`docs/ROLE_RULES.md`)
-- Auth flow: login, set-password, session handling
+- Auth flow: login, set-password, session handling, bootstrap first Owner
+  `employees` row + linked `auth.users` account
 - Real RBAC wiring for `useAuth` / `useRole` (currently scaffolded only)
 - Department/designation CRUD (Owner only)
 - Employee CRUD (P0 fields)
