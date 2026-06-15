@@ -15,7 +15,6 @@ export async function fetchHolidays(year: number) {
     .from('holidays')
     .select('*')
     .eq('year', year)
-    .eq('is_active', true)
     .order('date')
   if (error) throw error
   return data ?? []

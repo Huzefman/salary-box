@@ -1,13 +1,15 @@
-import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useCallback } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/hooks/useAuth'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { RequireAuth, RequireRole } from '@/components/layout/RoleGuard'
+import { RequireAuth, RequireRole, RequireFirstPasswordSet } from '@/components/layout/RoleGuard'
+import { Toaster } from '@/components/ui/sonner'
 
 // Auth pages
 import LoginPage from '@/pages/LoginPage'
 import SetPasswordPage from '@/pages/SetPasswordPage'
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import OnboardingPage from '@/pages/OnboardingPage'
 
 // App pages
@@ -35,90 +37,142 @@ import GeofencePage from '@/pages/GeofencePage'
 
 export default function App() {
   const { setAuth, clearAuth, setLoading } = useAuthStore()
+  const navigate = useNavigate()
+
+  /**
+   * Fetch the employee record for a given auth UID and hydrate the store.
+   * Returns the employee record or null if not found.
+   */
+  const hydrateEmployee = useCallback(
+    async (user: Parameters<typeof setAuth>[0]) => {
+      const { data: employee } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('auth_id', user.id)
+        .single()
+
+      if (employee) {
+        setAuth(user, employee)
+        return employee
+      }
+
+      // Auth user exists but no employee row — edge case (orphaned auth account)
+      setLoading(false)
+      return null
+    },
+    [setAuth, setLoading]
+  )
 
   useEffect(() => {
+    // 1. Check existing session on mount
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const { data: employee } = await supabase
-          .from('employees')
-          .select('*')
-          .eq('auth_id', session.user.id)
-          .single()
-        if (employee) {
-          setAuth(session.user, employee)
-        } else {
-          setLoading(false)
+        const employee = await hydrateEmployee(session.user)
+        // If first login, redirect to set-password
+        if (employee?.is_first_login) {
+          navigate('/set-password', { replace: true })
         }
       } else {
         setLoading(false)
       }
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') clearAuth()
+    // 2. Listen for auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const employee = await hydrateEmployee(session.user)
+        if (employee?.is_first_login) {
+          navigate('/set-password', { replace: true })
+        }
+      }
+
+      if (event === 'TOKEN_REFRESHED' && session?.user) {
+        // Re-hydrate on token refresh to pick up any role/employee changes
+        await hydrateEmployee(session.user)
+      }
+
+      if (event === 'SIGNED_OUT') {
+        clearAuth()
+        navigate('/login', { replace: true })
+      }
+
+      if (event === 'PASSWORD_RECOVERY' && session?.user) {
+        // User clicked the password reset link from email
+        await hydrateEmployee(session.user)
+        navigate('/set-password', { replace: true })
+      }
     })
 
     return () => subscription.unsubscribe()
-  }, [setAuth, clearAuth, setLoading])
+  }, [hydrateEmployee, clearAuth, setLoading, navigate])
 
   return (
-    <Routes>
-      {/* Public */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/set-password" element={<SetPasswordPage />} />
+    <>
+      <Toaster position="top-right" richColors closeButton />
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/set-password" element={<SetPasswordPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-      {/* Protected — requires auth + layout shell */}
-      <Route element={<RequireAuth />}>
-        <Route path="/onboarding" element={<OnboardingPage />} />
+        {/* Protected — requires auth */}
+        <Route element={<RequireAuth />}>
+          <Route path="/onboarding" element={<OnboardingPage />} />
 
-        <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
+          {/* Protected — requires first password to be set + layout shell */}
+          <Route element={<RequireFirstPasswordSet />}>
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
 
-          {/* Employees */}
-          <Route path="/employees" element={<EmployeesPage />} />
-          <Route element={<RequireRole allow={['owner']} />}>
-            <Route path="/employees/new" element={<NewEmployeePage />} />
-            <Route path="/employees/bulk-import" element={<BulkImportPage />} />
-          </Route>
-          <Route path="/employees/:id" element={<EmployeeDetailPage />} />
+              {/* Employees */}
+              <Route path="/employees" element={<EmployeesPage />} />
+              <Route element={<RequireRole allow={['owner']} />}>
+                <Route path="/employees/new" element={<NewEmployeePage />} />
+                <Route path="/employees/bulk-import" element={<BulkImportPage />} />
+              </Route>
+              <Route path="/employees/:id" element={<EmployeeDetailPage />} />
 
-          {/* Attendance */}
-          <Route path="/attendance" element={<AttendancePage />} />
-          <Route element={<RequireRole allow={['owner', 'hr']} />}>
-            <Route path="/attendance/team" element={<TeamAttendancePage />} />
-          </Route>
-          <Route path="/attendance/regularization" element={<RegularizationPage />} />
+              {/* Attendance */}
+              <Route path="/attendance" element={<AttendancePage />} />
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/attendance/team" element={<TeamAttendancePage />} />
+              </Route>
+              <Route path="/attendance/regularization" element={<RegularizationPage />} />
 
-          {/* Leave */}
-          <Route path="/leave" element={<LeaveDashboardPage />} />
-          <Route path="/leave/apply" element={<ApplyLeavePage />} />
-          <Route path="/leave/applications/:id" element={<LeaveApplicationDetailPage />} />
-          <Route path="/leave/comp-off/request" element={<CompOffPage />} />
-          <Route element={<RequireRole allow={['owner', 'hr']} />}>
-            <Route path="/leave/team" element={<TeamLeavePage />} />
-          </Route>
-          <Route path="/leave/holidays" element={<HolidayCalendarPage />} />
+              {/* Leave */}
+              <Route path="/leave" element={<LeaveDashboardPage />} />
+              <Route path="/leave/apply" element={<ApplyLeavePage />} />
+              <Route path="/leave/applications/:id" element={<LeaveApplicationDetailPage />} />
+              <Route path="/leave/comp-off/request" element={<CompOffPage />} />
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/leave/team" element={<TeamLeavePage />} />
+              </Route>
+              <Route path="/leave/holidays" element={<HolidayCalendarPage />} />
 
-          {/* Settings */}
-          <Route element={<RequireRole allow={['owner']} />}>
-            <Route path="/settings/departments" element={<DepartmentsPage />} />
-            <Route path="/settings/designations" element={<DesignationsPage />} />
-            <Route path="/settings/leave-types" element={<LeaveTypesPage />} />
-            <Route path="/settings/app-config" element={<AppConfigPage />} />
-          </Route>
-          <Route element={<RequireRole allow={['owner', 'hr']} />}>
-            <Route path="/settings/shifts" element={<ShiftsPage />} />
-            <Route path="/settings/holidays" element={<HolidayCalendarPage />} />
-          </Route>
-          <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
-            <Route path="/settings/ip-whitelist" element={<IPWhitelistPage />} />
-            <Route path="/settings/geofence" element={<GeofencePage />} />
+              {/* Settings */}
+              <Route element={<RequireRole allow={['owner']} />}>
+                <Route path="/settings/departments" element={<DepartmentsPage />} />
+                <Route path="/settings/designations" element={<DesignationsPage />} />
+                <Route path="/settings/leave-types" element={<LeaveTypesPage />} />
+                <Route path="/settings/app-config" element={<AppConfigPage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/settings/shifts" element={<ShiftsPage />} />
+                <Route path="/settings/holidays" element={<HolidayCalendarPage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
+                <Route path="/settings/ip-whitelist" element={<IPWhitelistPage />} />
+                <Route path="/settings/geofence" element={<GeofencePage />} />
+              </Route>
+            </Route>
           </Route>
         </Route>
-      </Route>
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </>
   )
 }

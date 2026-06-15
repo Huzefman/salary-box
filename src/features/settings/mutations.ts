@@ -17,7 +17,7 @@ export function useUpdateAppConfig() {
 export function useCreateDepartment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (body: { name: string; description?: string }) => {
+    mutationFn: async (body: { name: string; parent_id?: string }) => {
       const { data, error } = await supabase.from('departments').insert(body).select().single()
       if (error) throw error
       return data

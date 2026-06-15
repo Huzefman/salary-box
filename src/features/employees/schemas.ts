@@ -28,7 +28,7 @@ export type CreateEmployeeForm = z.infer<typeof createEmployeeSchema>
 
 export const departmentSchema = z.object({
   name: z.string().min(1, 'Department name is required'),
-  description: z.string().optional(),
+  parent_id: z.string().uuid().optional(),
 })
 export type DepartmentForm = z.infer<typeof departmentSchema>
 
