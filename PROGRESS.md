@@ -3,8 +3,8 @@
 ## Current State
 Date: 2026-06-15
 Active branch: experiment-new-agent
-Milestone: M1 — Foundation (COMPLETE — all 7 phases done)
-Next milestone: M2 — Employee Module (document vault, bulk import, lifecycle events)
+Milestone: M2 — Employee Module (COMPLETE)
+Next milestone: M3 — Attendance Module
 
 ## Completed
 - All spec/context docs in `docs/` (DATABASE_SCHEMA, BUSINESS_RULES,
@@ -178,13 +178,55 @@ Next milestone: M2 — Employee Module (document vault, bulk import, lifecycle e
     in a monospace code block with a clipboard copy button (Check icon state).
     Deployed to Supabase Edge Functions runtime.
   - `npm run typecheck` and `npm run build` both pass clean.
+- **2026-06-15 — M2: Employee Detail Tabs + Edge Functions**
+  - Installed shadcn/ui: Tabs, Progress, Skeleton, Tooltip, Select, Popover, Command.
+  - Added API/hooks/types/schemas for documents, bank details, lifecycle events,
+    attendance, leave, and onboarding data.
+  - **Edge Functions implemented & deployed:**
+    - `upload-document`: MIME (PDF/JPEG/PNG) & size (≤5MB) validation, SHA-256
+      hash for PAN/Aadhar dupe detection with Owner override + audit logging.
+      Uploads to `employee-documents/{employee_id}/{uuid}.{ext}` in Storage.
+    - `add-lifecycle-event`: Role-gated event types — Owner: promotion, transfer,
+      salary_revision, resignation, termination, rehire; HR: promotion, transfer,
+      resignation. Termination checks orphaned reporting lines, sets
+      employment_status='terminated', revokes auth if immediate. Updates
+      salary/dept/designation on employee row per event type.
+    - `generate-presigned-url`: Verifies file access per role (mirrors storage
+      RLS), generates 15-min signed URL.
+    - `bulk-import-employees`: Parses CSV, validates rows (required fields, email
+      format, department/designation/manager lookup by name), batch inserts
+      employees (no auth accounts — separate welcome email flow). Returns
+      per-row error details.
+    - `update-employee`: Role-gated field permissions — Owner all fields, HR all
+      except role/current_salary/auth_id, Employee own non-sensitive only (phone,
+      personal_email, address, emergency contact, photo_url).
+  - **Employee Detail Page** (`/employees/:id`): 7-tab layout via
+    `EmployeeDetailTabs.tsx`. Role-aware: Owner/HR see all 7 tabs + action
+    buttons; System Admin read-only view; Employee self-view shows 3 tabs
+    (My Profile, My Documents, Onboarding).
+    - Overview tab: avatar, info cards, employment details grid, Edit button
+    - Documents tab: file list with download (presigned URL), upload dialog
+      with document type selector for Owner/HR
+    - Bank Details tab: masked account (XXXX), IFSC, bank name — Owner only
+    - Lifecycle tab: timeline with event type icons, old→new changes, performer
+    - Attendance tab: current month summary cards (present, absent, late, WFH)
+    - Leave tab: balance cards per type with Progress bars, pending count
+    - Onboarding tab: checklist with progress bar, completed/total badge
+  - **EmployeeSelfProfilePage** uses same `EmployeeDetailTabs` with self-view.
+  - **Edit Employee Page** (`/employees/:id/edit`): Pre-populated form with all
+    personal + job fields, accessible to Owner/HR/self. Saves via update-employee.
+  - **Bulk Import Page** (`/employees/bulk-import`): Download CSV template →
+    upload file → preview results with success count + per-row error list.
+  - Fixed `employment_type` enum mismatch: `contract` → `contractor` to match DB schema.
+  - All 5 new Edge Functions deployed to production.
+  - `npm run typecheck` and `npm run build` both pass clean (787 KB JS, 38.8 KB CSS).
 
-## Pending (next milestone — M2)
-- Employee document vault (upload/view/download)
-- Bulk employee import with CSV/XLSX
-- Employee lifecycle events (promotion, transfer, salary revision)
-- Activity timeline
-- Org chart (P2)
+## Pending (next milestone — M3)
+- Attendance check-in/out with geofence + IP whitelist
+- Attendance dashboard (admin grid view, filters, export)
+- Regularization requests (apply, approve, reject)
+- Auto-checkout cron function
+- Shift management UI
 
 ## Decisions Made
 - 2026-06-10: Adopted `main` / `dev` / `feature/*` branch workflow per

@@ -23,8 +23,11 @@ inventing an answer.
 ## Current status — UPDATE THIS EVERY SESSION
 Last updated: 2026-06-15
 Active branch: experiment-new-agent
-Just completed: M1 Phase 1–7 (full M1 milestone).
-Current session: Fixed orphaned auth user handling + copy temp password dialog.
+Just completed: M2 — Employee Module (full module done).
+Current session: Edge Functions (upload-document, add-lifecycle-event,
+generate-presigned-url, bulk-import-employees, update-employee) + detail tabs
+(Overview/Documents/Bank Details/Lifecycle/Attendance/Leave/Onboarding) + Edit
+Employee page + Bulk Import page + Self-profile editable fields.
 
 ### Phase 1-2: Bootstrap + Auth Flow (previous session)
 - Migration `0009_bootstrap_owner` applied: created first Owner auth.users
@@ -68,18 +71,33 @@ Current session: Fixed orphaned auth user handling + copy temp password dialog.
   Deployed via `npx supabase functions deploy create-employee`.
 - `npm run typecheck` and `npm run build` both pass clean.
 
-### Current session (2026-06-15) — orphaned auth user fix + copy password
-- **Bug:** Manually deleting an employee from the `employees` table left their
-  Supabase Auth user intact. Re-creating the same person failed with "A user
-  with this email address has already been registered".
-- **Fix:** `create-employee` Edge Function now detects existing auth users,
-  deletes them via `admin.deleteUser()`, then recreates a fresh auth account.
-  Uses a retry loop (attempt → delete on conflict → retry → rollback on
-  failure).
-- **UX:** Replaced the Sonner toast with a `Dialog` showing the temp password
-  in a monospace code block with a copy-to-clipboard button (Check icon on
-  success). Employee detail page is a placeholder (M2 scope).
-- Committed as `21c0006` on `experiment-new-agent`.
+### Current session (2026-06-15) — M2 Employee Module
+- **Foundation:** Installed shadcn/ui Tabs, Progress, Skeleton, Tooltip, Select,
+  Popover, Command. Added API hooks/types for documents, bank details, lifecycle
+  events, attendance, leave, onboarding.
+- **Edge Functions (deployed):**
+  - `upload-document` — MIME/size validation, SHA-256 hash dupe detection for
+    PAN/Aadhar, Owner override with audit log, upload to Storage.
+  - `add-lifecycle-event` — Role-gated (Owner: all 6 types, HR: promotion/
+    transfer/resignation). Termination handles orphaned reports + immediate auth
+    revocation. Updates salary/dept/designation/status on employee row.
+  - `generate-presigned-url` — 15-min expiry, role-based access check.
+  - `bulk-import-employees` — CSV parsing, row validation, batch insert (no auth
+    accounts — send welcome emails separately).
+  - `update-employee` — Role-gated field permissions: Owner all fields, HR all
+    except role/salary/auth_id, Employee own non-sensitive only.
+- **Employee Detail Page** (`/employees/:id`): 7 tabs — Overview (info cards +
+  employment details), Documents (upload dialog + presigned URL download), Bank
+  Details (masked XXXX), Lifecycle (timeline), Attendance (monthly summary),
+  Leave (balances with progress bars), Onboarding (checklist). Role-aware:
+  Owner/HR see all 7 tabs + actions. Employee self-view shows 3 tabs.
+- **Edit Employee** (`/employees/:id/edit`): Pre-populated form, route registered
+  for Owner/HR/Employee (self). Role-gated field editing via Edge Function.
+- **Bulk Import** (`/employees/bulk-import`): Download CSV template → upload →
+  preview results with per-row errors.
+- **Self-Profile** (`/employees/me`): Uses same tabbed layout. Edit button
+  visible for all roles on own profile.
+- Committed as `b8d82fd` and `f48fa4f` on `experiment-new-agent`.
 
 ### Known issues
 - `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
@@ -91,7 +109,6 @@ Current session: Fixed orphaned auth user handling + copy temp password dialog.
   when `dev` merges into `main` at milestone completion (see PROGRESS.md).
 - RESEND_API_KEY not configured in Supabase project secrets → welcome email
   silently fails (non-fatal try/catch).
-- EmployeeDetailPage is a placeholder — not yet implemented (M2 scope).
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,
