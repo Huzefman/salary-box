@@ -30,6 +30,7 @@ export function SetPasswordForm() {
   const employee = useAuthStore((s) => s.employee)
   const setAuth = useAuthStore((s) => s.setAuth)
   const user = useAuthStore((s) => s.user)
+  const setPasswordRecovery = useAuthStore((s) => s.setPasswordRecovery)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -88,6 +89,8 @@ export function SetPasswordForm() {
         }
       }
 
+      // Clear recovery mode and go to dashboard
+      setPasswordRecovery(false)
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(getErrorMessage(err))

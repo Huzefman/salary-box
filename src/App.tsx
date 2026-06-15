@@ -36,7 +36,7 @@ import IPWhitelistPage from '@/pages/IPWhitelistPage'
 import GeofencePage from '@/pages/GeofencePage'
 
 export default function App() {
-  const { setAuth, clearAuth, setLoading } = useAuthStore()
+  const { setAuth, clearAuth, setLoading, setPasswordRecovery } = useAuthStore()
   const navigate = useNavigate()
 
   /**
@@ -101,12 +101,13 @@ export default function App() {
       if (event === 'PASSWORD_RECOVERY' && session?.user) {
         // User clicked the password reset link from email
         await hydrateEmployee(session.user)
+        setPasswordRecovery(true)
         navigate('/set-password', { replace: true })
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [hydrateEmployee, clearAuth, setLoading, navigate])
+  }, [hydrateEmployee, clearAuth, setLoading, setPasswordRecovery, navigate])
 
   return (
     <>
