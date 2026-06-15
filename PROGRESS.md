@@ -1,7 +1,7 @@
 # Progress Log
 
 ## Current State
-Date: 2026-06-12
+Date: 2026-06-15
 Active branch: feature/auth-rbac
 Milestone: M1 — Foundation (Supabase setup, migrations, RLS, auth, RBAC,
 department/designation CRUD, employee CRUD P0, sidebar shell)
@@ -71,17 +71,57 @@ department/designation CRUD, employee CRUD P0, sidebar shell)
     non-existent `holidays.is_active` filter), `useCreateDepartment` /
     `departmentSchema` (removed non-existent `departments.description` field,
     added real `parent_id`). `npm run typecheck` passes clean.
+- **2026-06-15 — M1 Phase 1: Bootstrap + Prerequisites**
+  - Migration `0009_bootstrap_owner` applied via MCP `apply_migration`:
+    created Owner auth.users account (fitmantrabyamanatkagzi@gmail.com,
+    password hashed via crypt/gen_salt/bf) + linked employees row
+    (id=83900680-e1d4-4c2e-93ed-e476e39b264d, auth_id=dfad9a65-72d3-47ee-
+    a63e-f2acde3837fa, employee_code=EMP-2026-0001, role=owner,
+    is_first_login=true). DO block with idempotency guard + auth.identities
+    row for email provider.
+  - Initialized shadcn/ui: `npx shadcn@latest init --template vite --yes`
+    → components.json, tailwind.config.ts updated, vite.config.ts path
+    aliases verified. Installed 17 UI components via `npx shadcn@latest add`:
+    Button, Input, Label, Card, Form, Toast, Toaster, Separator, Badge,
+    Table, DropdownMenu, Sheet, ScrollArea, Avatar, Dialog, Sonner, Chart.
+  - Fixed toaster.tsx broken import: `@/components/hooks/use-toast` →
+    `@/hooks/use-toast`.
+- **2026-06-15 — M1 Phase 2: Auth Flow**
+  - `src/features/auth/components/LoginForm.tsx`: React Hook Form + Zod
+    (loginSchema), supabase.auth.signInWithPassword, password visibility
+    toggle, generic error messages per S-01 spec, loading spinner.
+  - `src/features/auth/components/SetPasswordForm.tsx`: password strength
+    indicator (4 rules + visual bar), supabase.auth.updateUser, updates
+    employees.is_first_login=false, updates local auth store.
+  - `src/features/auth/components/ForgotPasswordForm.tsx`: supabase.auth
+    .resetPasswordForEmail, always shows success (security best practice),
+    success state with "Check your email" UI.
+  - `src/pages/LoginPage.tsx`: premium glassmorphism card, gradient
+    background, decorative blur elements, forgot-password link.
+  - `src/pages/SetPasswordPage.tsx`: session guards (redirect if not
+    authed or already set), personalized welcome message.
+  - `src/pages/ForgotPasswordPage.tsx`: matching premium design.
+  - `src/App.tsx` rewritten: proper onAuthStateChange handling for
+    SIGNED_IN/TOKEN_REFRESHED/SIGNED_OUT/PASSWORD_RECOVERY, hydrateEmployee
+    helper, first-login auto-redirect to /set-password, /forgot-password
+    route added, Sonner toast provider.
+  - `src/components/layout/RoleGuard.tsx`: added RequireFirstPasswordSet
+    guard (redirects is_first_login users to /set-password), wraps AppLayout.
+  - `src/features/auth/index.ts`: barrel exports for all 3 form components.
+  - Fixed pre-existing build issue: tsconfig.node.json had composite +
+    allowImportingTsExtensions conflict; removed composite/references,
+    changed build script from `tsc -b` to `tsc --noEmit`.
+  - `npm run typecheck` passes clean. `npm run build` passes clean
+    (592 KB JS bundle, 30 KB CSS).
 
 ## In Progress
-- Nothing yet beyond the above on `feature/auth-rbac`.
+- Nothing currently in progress.
 
 ## Pending (this milestone — M1)
-- Auth flow: login, set-password, session handling, bootstrap first Owner
-  `employees` row + linked `auth.users` account
-- Real RBAC wiring for `useAuth` / `useRole` (currently scaffolded only)
+- Sidebar navigation wired to real role/session data per SCREEN_INVENTORY.md
 - Department/designation CRUD (Owner only)
-- Employee CRUD (P0 fields)
-- Sidebar shell wired to real role/session data
+- Employee CRUD (P0 fields) + `create-employee` Edge Function
+- Dashboard placeholder (role-aware sections)
 
 ## Decisions Made
 - 2026-06-10: Adopted `main` / `dev` / `feature/*` branch workflow per

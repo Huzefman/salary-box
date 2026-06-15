@@ -21,30 +21,36 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-12
+Last updated: 2026-06-15
 Active branch: feature/auth-rbac
-Just completed: M1 schema + RLS migration. Applied `supabase/migrations/0001`–
-`0008` to project `hqiggiqwyxjiltltvoay`, covering all 24 tables from
-`docs/DATABASE_SCHEMA.md` with RLS policies per `docs/ROLE_RULES.md`,
-`get_my_role()` / `get_my_employee_id()` helper functions, `set_updated_at()`
-trigger, the 4 field-level/transition enforcement triggers
-(`enforce_employee_update`, `enforce_document_softdelete`,
-`enforce_attendance_timestamps`, `enforce_leave_application_update`), and the
-`log_changes()` audit trigger on 21 tables. Migration 0008 fixed all
-addressable `get_advisors` WARNs (`function_search_path_mutable` on 5
-functions, `auth_rls_initplan` on 3 policies) with no behavioral changes.
-RLS spot-checked (anon sees 0 rows, `get_my_role()`/`get_my_employee_id()`
-return null for anon). Regenerated `src/types/database.types.ts` and fixed 4
-files with placeholder code that no longer matched the real schema
-(`employees/utils.ts`, `employees/schemas.ts`, `settings/api.ts`,
-`settings/mutations.ts`). `npm run typecheck` passes clean. Full details in
-PROGRESS.md.
-Next task: Auth flow — login page, set-password flow, session handling, and
-real RBAC wiring for `useAuth` / `useRole` (currently scaffolded only). Includes
-bootstrapping the first Owner `employees` row + linked `auth.users` account
-(service-role / elevated privileges, since `employees` INSERT requires
-`get_my_role() = 'owner'`). Department/designation CRUD, employee CRUD, and
-sidebar wiring (also pending for M1) depend on this and come after.
+Just completed: M1 Phase 1 (bootstrap) + Phase 2 (auth flow).
+- Migration `0009_bootstrap_owner` applied: created first Owner auth.users
+  account (fitmantrabyamanatkagzi@gmail.com) + linked `employees` row
+  (EMP-2026-0001, role=owner, is_first_login=true). Verified via execute_sql.
+- Initialized shadcn/ui (components.json, tailwind.config, vite.config) and
+  installed 17 UI primitives: Button, Input, Label, Card, Form, Toast, Toaster,
+  Separator, Badge, Table, DropdownMenu, Sheet, ScrollArea, Avatar, Dialog,
+  Sonner, Chart.
+- Built auth flow — 3 screens, all functional:
+  - LoginPage (`/login`): email+password via Supabase Auth signInWithPassword,
+    generic error messages, password visibility toggle, premium glassmorphism
+    design.
+  - SetPasswordPage (`/set-password`): forced on first login
+    (is_first_login=true), password strength indicator with 4 rules, updates
+    both Supabase Auth password and employees.is_first_login flag.
+  - ForgotPasswordPage (`/forgot-password`): Supabase Auth
+    resetPasswordForEmail, always shows success regardless of email existence.
+- App.tsx rewritten with proper session handling: onAuthStateChange for
+  SIGNED_IN / TOKEN_REFRESHED / SIGNED_OUT / PASSWORD_RECOVERY events, auto
+  employee hydration from employees table, first-login redirect logic.
+- RoleGuard.tsx: added RequireFirstPasswordSet guard wrapping AppLayout routes.
+- Sonner toast provider added globally.
+- Fixed pre-existing build issues: tsconfig.node.json composite/noEmit
+  conflict, toaster.tsx broken import path.
+- `npm run typecheck` and `npm run build` both pass clean.
+Next task: Phase 3–7 of M1 — real sidebar navigation per role (SCREEN_INVENTORY),
+department/designation CRUD (Owner only), employee CRUD (P0 fields + create-employee
+Edge Function), and dashboard placeholder.
 Known issues: `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
 reverted to a pre-scaffold state by a PR merge from `upstream/main`
 (`04bbe85`, "Merge pull request #1 from Huzefman/main") — it currently does
