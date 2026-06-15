@@ -19,7 +19,7 @@ export const createEmployeeSchema = z.object({
   designation_id: z.string().uuid('Select a designation').optional(),
   reporting_manager_id: z.string().uuid().optional(),
   role: z.enum(['owner', 'hr', 'employee', 'system_admin']).default('employee'),
-  employment_type: z.enum(['full_time', 'part_time', 'contract', 'intern']).default('full_time'),
+  employment_type: z.enum(['full_time', 'part_time', 'contractor', 'intern']).default('full_time'),
   join_date: z.string().min(1, 'Join date is required'),
   probation_end_date: z.string().optional(),
   current_salary: z.number().positive().optional(),

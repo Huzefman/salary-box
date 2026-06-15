@@ -3,6 +3,7 @@ import { callEdgeFunction, callEdgeFunctionFormData } from '@/lib/edge'
 import type { CreateEmployeeResponse, UploadDocumentResponse, AddLifecycleEventResponse } from '@/types'
 import type { CreateEmployeeForm } from './schemas'
 import type { LifecycleEventForm } from './types'
+import type { Employee } from '@/types'
 
 export function useCreateEmployee() {
   const qc = useQueryClient()
@@ -39,4 +40,40 @@ export function useAddLifecycleEvent() {
       qc.invalidateQueries({ queryKey: ['employees', 'detail', variables.employee_id] })
     },
   })
+}
+
+export function useBulkImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (formData: FormData) =>
+      callEdgeFunctionFormData<{ total_rows: number; success_count: number; failure_count: number; failures: { row: number; error: string }[] }>('bulk-import-employees', formData),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employees', 'list'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+type UpdateEmployeeFields = Partial<Omit<Employee, 'id' | 'created_at' | 'updated_at'>>
+
+export function useUpdateEmployee() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ employee_id, ...updates }: { employee_id: string } & UpdateEmployeeFields) =>
+      callEdgeFunction<{ employee_id: string } & UpdateEmployeeFields, { id: string }>('update-employee', {
+        employee_id,
+        ...updates,
+      }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['employees', 'detail', variables.employee_id] })
+      qc.invalidateQueries({ queryKey: ['employees', 'list'] })
+    },
+  })
+}
+
+export type BulkImportResult = {
+  total_rows: number
+  success_count: number
+  failure_count: number
+  failures: { row: number; error: string }[]
 }

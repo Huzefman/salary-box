@@ -1,5 +1,10 @@
+import { Link } from 'react-router-dom'
+import { Pencil } from 'lucide-react'
+import { useRole } from '@/hooks/useRole'
+import { useAuthStore } from '@/hooks/useAuth'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { getEmployeeFullName, getEmploymentStatusLabel } from '@/features/employees/utils'
@@ -20,26 +25,37 @@ function statusVariant(status: string) {
 
 export function EmployeeOverviewTab({ employee }: Props) {
   const initials = `${employee.first_name[0]}${employee.last_name[0]}`.toUpperCase()
+  const { isOwner, isHR } = useRole()
+  const currentEmployee = useAuthStore((s) => s.employee)
+  const isOwnProfile = currentEmployee?.id === employee.id
+  const canEdit = isOwner || isHR || isOwnProfile
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={employee.photo_url ?? undefined} />
-              <AvatarFallback className="text-lg">{initials}</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle className="text-xl">{getEmployeeFullName(employee)}</CardTitle>
-              <p className="text-sm text-muted-foreground">{employee.employee_code}</p>
-              <div className="mt-1 flex gap-2">
-                <Badge variant={statusVariant(employee.employment_status)}>
-                  {getEmploymentStatusLabel(employee.employment_status)}
-                </Badge>
-                <Badge variant="outline">{employee.role}</Badge>
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16">
+                <AvatarImage src={employee.photo_url ?? undefined} />
+                <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+              </Avatar>
+              <div>
+                <CardTitle className="text-xl">{getEmployeeFullName(employee)}</CardTitle>
+                <p className="text-sm text-muted-foreground">{employee.employee_code}</p>
+                <div className="mt-1 flex gap-2">
+                  <Badge variant={statusVariant(employee.employment_status)}>
+                    {getEmploymentStatusLabel(employee.employment_status)}
+                  </Badge>
+                  <Badge variant="outline">{employee.role}</Badge>
+                </div>
               </div>
             </div>
+            {canEdit && (
+              <Link to={`/employees/${employee.id}/edit`}>
+                <Button size="sm" variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
+              </Link>
+            )}
           </div>
         </CardHeader>
       </Card>

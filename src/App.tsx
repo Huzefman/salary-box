@@ -17,6 +17,7 @@ import DashboardPage from '@/pages/DashboardPage'
 import EmployeesPage from '@/pages/EmployeesPage'
 import EmployeeDetailPage from '@/pages/EmployeeDetailPage'
 import NewEmployeePage from '@/pages/NewEmployeePage'
+import EditEmployeePage from '@/pages/EditEmployeePage'
 import BulkImportPage from '@/pages/BulkImportPage'
 import AttendancePage from '@/pages/AttendancePage'
 import TeamAttendancePage from '@/pages/TeamAttendancePage'
@@ -140,6 +141,9 @@ export default function App() {
               <Route element={<RequireRole allow={['owner']} />}>
                 <Route path="/employees/new" element={<NewEmployeePage />} />
                 <Route path="/employees/bulk-import" element={<BulkImportPage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'hr', 'employee']} />}>
+                <Route path="/employees/:id/edit" element={<EditEmployeePage />} />
               </Route>
               <Route path="/employees/:id" element={<EmployeeDetailPage />} />
 
