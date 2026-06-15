@@ -34,6 +34,14 @@ import LeaveTypesPage from '@/pages/LeaveTypesPage'
 import AppConfigPage from '@/pages/AppConfigPage'
 import IPWhitelistPage from '@/pages/IPWhitelistPage'
 import GeofencePage from '@/pages/GeofencePage'
+import SettingsNotificationsPage from '@/pages/SettingsNotificationsPage'
+import SettingsOnboardingPage from '@/pages/SettingsOnboardingPage'
+import EmployeeSelfProfilePage from '@/pages/EmployeeSelfProfilePage'
+import ReportsAttendancePage from '@/pages/ReportsAttendancePage'
+import ReportsLeavePage from '@/pages/ReportsLeavePage'
+import ReportsHeadcountPage from '@/pages/ReportsHeadcountPage'
+import ReportsRegularizationPage from '@/pages/ReportsRegularizationPage'
+import ReportsHeatmapPage from '@/pages/ReportsHeatmapPage'
 
 export default function App() {
   const { setAuth, clearAuth, setLoading, setPasswordRecovery } = useAuthStore()
@@ -166,6 +174,28 @@ export default function App() {
               <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
                 <Route path="/settings/ip-whitelist" element={<IPWhitelistPage />} />
                 <Route path="/settings/geofence" element={<GeofencePage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner']} />}>
+                <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
+                <Route path="/settings/onboarding-checklist" element={<SettingsOnboardingPage />} />
+              </Route>
+
+              {/* Employee self-profile */}
+              <Route path="/employees/me" element={<EmployeeSelfProfilePage />} />
+
+              {/* Reports */}
+              <Route element={<RequireRole allow={['owner', 'hr', 'employee']} />}>
+                <Route path="/reports/attendance" element={<ReportsAttendancePage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/reports/leave" element={<ReportsLeavePage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
+                <Route path="/reports/headcount" element={<ReportsHeadcountPage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner']} />}>
+                <Route path="/reports/regularization" element={<ReportsRegularizationPage />} />
+                <Route path="/reports/heatmap" element={<ReportsHeatmapPage />} />
               </Route>
             </Route>
           </Route>

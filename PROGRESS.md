@@ -2,9 +2,9 @@
 
 ## Current State
 Date: 2026-06-15
-Active branch: feature/auth-rbac
-Milestone: M1 — Foundation (Supabase setup, migrations, RLS, auth, RBAC,
-department/designation CRUD, employee CRUD P0, sidebar shell)
+Active branch: experiment-new-agent
+Milestone: M1 — Foundation (COMPLETE — all 7 phases done)
+Next milestone: M2 — Employee Module (document vault, bulk import, lifecycle events)
 
 ## Completed
 - All spec/context docs in `docs/` (DATABASE_SCHEMA, BUSINESS_RULES,
@@ -113,15 +113,69 @@ department/designation CRUD, employee CRUD P0, sidebar shell)
     changed build script from `tsc -b` to `tsc --noEmit`.
   - `npm run typecheck` passes clean. `npm run build` passes clean
     (592 KB JS bundle, 30 KB CSS).
-
-## In Progress
+- **2026-06-15 — M1 Phase 3: Sidebar Navigation**
+  - `src/components/layout/Sidebar.tsx` fully rewritten with role-aware
+    navigation groups per SCREEN_INVENTORY.md. Owner sees full nav tree
+    (Employees, Attendance, Leave, Reports, Settings with sub-items); HR
+    sees filtered view (Employees, Attendance, Leave, Reports, Shifts);
+    Employee sees Dashboard, My Profile, My Attendance, My Leave, My
+    Reports; System Admin sees Dashboard, read-only Employees/Attendance/
+    Leave, Headcount Reports, IP Whitelist/Geofence Settings.
+  - Collapsible nav groups with expand/collapse chevrons.
+- **2026-06-15 — M1 Phase 4: Department CRUD**
+  - `src/pages/DepartmentsPage.tsx`: tree view rendering with recursive
+    DepartmentTree component. Add root/sub-department via Dialog form,
+    rename inline, soft-delete (deactivate). Max 3-level nesting enforced
+    (L0→L1→L2). Owner-only access via RequireRole.
+- **2026-06-15 — M1 Phase 5: Designation CRUD**
+  - `src/pages/DesignationsPage.tsx`: grouped by department in card grid.
+    Add/edit via Dialog with department selector, soft-delete. Owner-only.
+- **2026-06-15 — M1 Phase 6: Employee CRUD + Edge Function**
+  - `supabase/functions/create-employee/index.ts` fully implemented:
+    1. Email uniqueness check → DUPLICATE (409)
+    2. Auto employee_code (EMP-YYYY-NNNN) with year-prefixed sequential count
+    3. employment_status: future_joiner if join_date > today, else active
+    4. Insert employees row
+    5. Supabase Auth admin.createUser with temp password, email_confirm=true
+    6. Link auth_id back to employee row
+    7. Welcome email via Resend (best-effort, non-fatal on failure)
+    8. Create employee_onboarding_progress rows from active templates
+    9. Create leave_balances rows for current year for all active leave types
+  - `src/pages/NewEmployeePage.tsx`: 2-step form (Personal Info → Job
+    Details), React Hook Form + Zod, uses existing useCreateEmployee mutation.
+  - `src/pages/EmployeesPage.tsx`: searchable list with avatar, initials,
+    employee code, department, designation, status badges (Active/Probation/
+    Resigned/Terminated/Future Joiner), join date. Employee role redirects
+    to own profile. Owner sees Add Employee button.
+- **2026-06-15 — M1 Phase 7: Dashboard + Route Polish**
+  - `src/pages/DashboardPage.tsx` role-aware: Owner stat cards (headcount,
+    pending leaves, regularizations), HR dashboard (pending approvals, team
+    links), Employee dashboard (check-in/out buttons, leave balance cards,
+    upcoming leaves), System Admin (system health, quick links).
+  - Placeholder pages added for Reports (Attendance, Leave, Headcount,
+    Regularization, Heatmap), Settings (Notifications, Onboarding Checklist),
+    Employee Self-Profile.
+  - All missing routes registered in App.tsx with RequireRole guards per
+    SCREEN_INVENTORY.md access matrix.
+   - `npm run typecheck` passes clean. `npm run build` passes clean
+    (685 KB JS bundle, 31 KB CSS).
+- **2026-06-15 — Post-M1 Fix: Edge Function Deployment**
+  - Discovered `create-employee` Edge Function was only local — not deployed.
+    Frontend calls to `*/functions/v1/create-employee` failed with CORS error
+    because the Supabase API gateway had no route for the function.
+  - Fixed `supabase/config.toml` functions section syntax for CLI compatibility.
+  - Deployed via `npx supabase functions deploy create-employee` — bundles
+    `index.ts` + all `_shared/` dependencies (`auth.ts`, `response.ts`,
+    `supabase.ts`, `email.ts`) into the Supabase Edge Functions runtime.
+  - Verified deployment: OPTIONS preflight returns 200, invalid JWT returns 401.
 - Nothing currently in progress.
 
-## Pending (this milestone — M1)
-- Sidebar navigation wired to real role/session data per SCREEN_INVENTORY.md
-- Department/designation CRUD (Owner only)
-- Employee CRUD (P0 fields) + `create-employee` Edge Function
-- Dashboard placeholder (role-aware sections)
+## Pending (next milestone — M2)
+- Employee document vault (upload/view/download)
+- Bulk employee import with CSV/XLSX
+- Employee lifecycle events (promotion, transfer, salary revision)
+- Activity timeline
+- Org chart (P2)
 
 ## Decisions Made
 - 2026-06-10: Adopted `main` / `dev` / `feature/*` branch workflow per

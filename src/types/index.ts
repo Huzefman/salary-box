@@ -48,6 +48,7 @@ export type CreateEmployeeResponse = {
   employee_id: string
   employee_code: string
   employment_status: Employee['employment_status']
+  temporary_password: string
 }
 
 // ─── Derived display types ────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ export function useCreateEmployee() {
       callEdgeFunction<CreateEmployeeForm, CreateEmployeeResponse>('create-employee', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['employees', 'list'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
