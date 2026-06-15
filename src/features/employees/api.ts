@@ -1,5 +1,15 @@
 import { supabase } from '@/lib/supabase'
-import type { Employee, EmployeeWithRelations } from '@/types'
+import type {
+  Employee,
+  EmployeeWithRelations,
+  EmployeeDocument,
+  EmployeeLifecycleEventWithRelations,
+  EmployeeBankDetail,
+  EmployeeOnboardingProgress,
+  OnboardingChecklistTemplate,
+  LeaveBalanceWithType,
+  AttendanceRecord,
+} from '@/types'
 
 export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
   const { data, error } = await supabase
@@ -60,4 +70,87 @@ export async function fetchActiveManagers(): Promise<Pick<Employee, 'id' | 'firs
     .order('first_name')
   if (error) throw error
   return data ?? []
+}
+
+export async function fetchEmployeeDocuments(employeeId: string): Promise<EmployeeDocument[]> {
+  const { data, error } = await supabase
+    .from('employee_documents')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function fetchEmployeeLifecycleEvents(employeeId: string): Promise<EmployeeLifecycleEventWithRelations[]> {
+  const { data, error } = await supabase
+    .from('employee_lifecycle_events')
+    .select(`
+      *,
+      performer:employees!performed_by(id, first_name, last_name),
+      previous_department:departments!previous_department_id(id, name),
+      new_department:departments!new_department_id(id, name),
+      previous_designation:designations!previous_designation_id(id, name),
+      new_designation:designations!new_designation_id(id, name)
+    `)
+    .eq('employee_id', employeeId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data as unknown as EmployeeLifecycleEventWithRelations[]
+}
+
+export async function fetchEmployeeBankDetails(employeeId: string): Promise<EmployeeBankDetail | null> {
+  const { data, error } = await supabase
+    .from('employee_bank_details')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function fetchEmployeeOnboardingProgress(employeeId: string): Promise<(EmployeeOnboardingProgress & { template: OnboardingChecklistTemplate | null })[]> {
+  const { data, error } = await supabase
+    .from('employee_onboarding_progress')
+    .select(`
+      *,
+      template:onboarding_checklist_templates(*)
+    `)
+    .eq('employee_id', employeeId)
+    .order('checklist_item_id')
+  if (error) throw error
+  return data as unknown as (EmployeeOnboardingProgress & { template: OnboardingChecklistTemplate | null })[]
+}
+
+export async function fetchEmployeeAttendanceCurrentMonth(employeeId: string): Promise<AttendanceRecord[]> {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const startDate = `${year}-${month}-01`
+
+  const { data, error } = await supabase
+    .from('attendance_records')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .gte('date', startDate)
+    .lte('date', `${year}-${month}-31`)
+    .order('date')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function fetchEmployeeLeaveBalancesWithType(employeeId: string): Promise<LeaveBalanceWithType[]> {
+  const year = new Date().getFullYear()
+  const { data, error } = await supabase
+    .from('leave_balances')
+    .select(`
+      *,
+      leave_type:leave_types(*)
+    `)
+    .eq('employee_id', employeeId)
+    .eq('year', year)
+  if (error) throw error
+  return data as unknown as LeaveBalanceWithType[]
 }
