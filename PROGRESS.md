@@ -239,6 +239,18 @@ Next milestone: M3 — Attendance Module
     - Migration `0010_fix_employee_self_update_is_first_login.sql` created locally.
     - Trigger updated on remote via `supabase db query`.
   - `npm run typecheck` and `npm run build` both pass clean.
+- **2026-06-16 — Employee Detail Page Fix**
+  - **Bug:** "Employee not found" shown when clicking any employee from the list.
+    `fetchEmployee()` used `.single()` with `select(*, department:departments(id, name), ...)`
+    without explicit `!fk` join syntax. PostgREST failed to embed joined data alongside
+    the wildcard column expansion, causing the query to error.
+    - **Fix:** Changed to explicit `!department_id` / `!designation_id` FK syntax matching
+      the working list page pattern. Replaced `.single()` with `.maybeSingle()` to return
+      `null` instead of throwing on no rows. Added `error` state display in
+      `EmployeeDetailTabs` so future query failures show the actual error message.
+    - Files changed: `src/features/employees/api.ts`,
+      `src/features/employees/components/EmployeeDetailTabs.tsx`
+  - `npm run typecheck` and `npm run build` both pass clean.
 
 ## Pending (next milestone — M3)
 - Attendance check-in/out with geofence + IP whitelist

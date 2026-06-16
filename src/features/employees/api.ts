@@ -16,8 +16,8 @@ export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
     .from('employees')
     .select(`
       *,
-      department:departments(id, name),
-      designation:designations(id, name),
+      department:departments!department_id(id, name),
+      designation:designations!designation_id(id, name),
       reporting_manager:employees!reporting_manager_id(id, first_name, last_name)
     `)
     .eq('is_active', true)
@@ -26,19 +26,19 @@ export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
   return data as unknown as EmployeeWithRelations[]
 }
 
-export async function fetchEmployee(id: string): Promise<EmployeeWithRelations> {
+export async function fetchEmployee(id: string): Promise<EmployeeWithRelations | null> {
   const { data, error } = await supabase
     .from('employees')
     .select(`
       *,
-      department:departments(id, name),
-      designation:designations(id, name),
+      department:departments!department_id(id, name),
+      designation:designations!designation_id(id, name),
       reporting_manager:employees!reporting_manager_id(id, first_name, last_name)
     `)
     .eq('id', id)
-    .single()
+    .maybeSingle()
   if (error) throw error
-  return data as unknown as EmployeeWithRelations
+  return data as unknown as EmployeeWithRelations | null
 }
 
 export async function fetchDepartments() {

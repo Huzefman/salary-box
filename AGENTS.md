@@ -28,6 +28,8 @@ Current session: Login flow was broken for new employees with temp passwords.
 Fixed two bugs: (1) race condition in auth flow where RequireAuth redirected to
 /login before employee hydration completed, and (2) enforce_employee_update()
 trigger blocked employees from setting is_first_login = false on password setup.
+Also fixed "Employee not found" on detail page — PostgREST `.single()` + `select(*)`
++ implicit FK joins caused query failure. Switched to explicit `!fk` syntax + `.maybeSingle()`.
 
 ### Phase 1-2: Bootstrap + Auth Flow (previous session)
 - Migration `0009_bootstrap_owner` applied: created first Owner auth.users

@@ -33,7 +33,7 @@ const SELF_TABS = [
 
 export function EmployeeDetailTabs({ employeeId }: Props) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { data: employee, isLoading } = useEmployee(employeeId)
+  const { data: employee, isLoading, error } = useEmployee(employeeId)
   const { isOwner, isHR, isSystemAdmin } = useRole()
   const currentEmployee = useAuthStore((s) => s.employee)
 
@@ -50,6 +50,16 @@ export function EmployeeDetailTabs({ employeeId }: Props) {
         <Skeleton className="h-10 w-96" />
         <Skeleton className="h-48 w-full" />
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center text-destructive">
+          Error loading employee: {(error as Error).message}
+        </CardContent>
+      </Card>
     )
   }
 
