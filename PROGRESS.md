@@ -251,6 +251,20 @@ Next milestone: M3 — Attendance Module
     - Files changed: `src/features/employees/api.ts`,
       `src/features/employees/components/EmployeeDetailTabs.tsx`
   - `npm run typecheck` and `npm run build` both pass clean.
+- **2026-06-16 — Document Upload Fix (Storage Bucket)**
+  - **Bug:** The Documents tab upload dialog showed but all uploads silently failed
+    with a 500 error. Root cause: the `employee-documents` Storage bucket never
+    existed in the Supabase project — the `upload-document` Edge Function was
+    deployed and correct, but `supabase.storage.from('employee-documents').upload()`
+    returned a bucket-not-found error.
+    - **Fix:** Created the bucket via direct SQL insert into `storage.buckets`
+      (`public: false`, `file_size_limit: 5MB`, `allowed_mime_types: [PDF, JPEG, PNG]`).
+      Added service-role-only Storage RLS policies (select/insert/update/delete) so
+      only Edge Functions can manage objects; users access files via presigned URLs.
+      Re-deployed the `upload-document` Edge Function to ensure `_shared/` deps
+      are bundled.
+    - Migration: `0011_create_employee_documents_storage_bucket.sql`
+    - `npm run typecheck` and `npm run build` both pass clean.
 
 ## Pending (next milestone — M3)
 - Attendance check-in/out with geofence + IP whitelist

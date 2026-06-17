@@ -23,13 +23,15 @@ inventing an answer.
 ## Current status — UPDATE THIS EVERY SESSION
 Last updated: 2026-06-16
 Active branch: experiment-new-agent
-Just completed: Auth bug fixes — race condition + trigger blocking is_first_login.
-Current session: Login flow was broken for new employees with temp passwords.
-Fixed two bugs: (1) race condition in auth flow where RequireAuth redirected to
-/login before employee hydration completed, and (2) enforce_employee_update()
-trigger blocked employees from setting is_first_login = false on password setup.
-Also fixed "Employee not found" on detail page — PostgREST `.single()` + `select(*)`
-+ implicit FK joins caused query failure. Switched to explicit `!fk` syntax + `.maybeSingle()`.
+Just completed: Document upload fix — missing Storage bucket.
+Current session: The employee Documents tab showed an upload dialog but all
+uploads silently failed. Root cause: the `employee-documents` Storage bucket
+never existed in the Supabase project — the `upload-document` Edge Function
+was deployed and correct, but `supabase.storage.from('employee-documents').upload()`
+hit a bucket-not-found error. Fixed by creating the bucket (private, 5MB limit,
+PDF/JPEG/PNG only) and adding service-role-only Storage RLS policies. Migration
+`0011_create_employee_documents_storage_bucket.sql` created locally. Also added
+bucket-level `file_size_limit` and `allowed_mime_types` as defense-in-depth.
 
 ### Phase 1-2: Bootstrap + Auth Flow (previous session)
 - Migration `0009_bootstrap_owner` applied: created first Owner auth.users
@@ -118,12 +120,12 @@ Also fixed "Employee not found" on detail page — PostgREST `.single()` + `sele
   from signing in with their temp password. The fix also added an explicit
   `admin.updateUserById(id, { email_confirm: true })` call in the
   `create-employee` Edge Function as defense-in-depth.
-- The `enforce_employee_update()` trigger on the remote DB has a
-  `if my_role is null then return new; end if;` guard that was added via a
-  prior ad-hoc SQL fix but is NOT reflected in the local migration files
-  (`0002_core.sql`). Migration `0010` was applied directly via `supabase db query`
-  (not through the Supabase MCP `apply_migration` tool), so the Supabase CLI
-  migration history is out of sync. Run `supabase migration repair` to reconcile.
+- Migration naming conflict: there are two `0010_*` files
+  (`0010_fix_employee_self_update_is_first_login.sql` and
+  `0010_fix_enforce_employee_update_service_role.sql`) — the second supersedes
+  the first. Both were applied via `supabase db query` (not through Supabase
+  MCP `apply_migration`), so the local migration history is out of sync with
+  the remote. Run `supabase migration repair` to reconcile.
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,
