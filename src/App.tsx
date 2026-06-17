@@ -17,6 +17,7 @@ import DashboardPage from '@/pages/DashboardPage'
 import EmployeesPage from '@/pages/EmployeesPage'
 import EmployeeDetailPage from '@/pages/EmployeeDetailPage'
 import NewEmployeePage from '@/pages/NewEmployeePage'
+import EditEmployeePage from '@/pages/EditEmployeePage'
 import BulkImportPage from '@/pages/BulkImportPage'
 import AttendancePage from '@/pages/AttendancePage'
 import TeamAttendancePage from '@/pages/TeamAttendancePage'
@@ -34,9 +35,17 @@ import LeaveTypesPage from '@/pages/LeaveTypesPage'
 import AppConfigPage from '@/pages/AppConfigPage'
 import IPWhitelistPage from '@/pages/IPWhitelistPage'
 import GeofencePage from '@/pages/GeofencePage'
+import SettingsNotificationsPage from '@/pages/SettingsNotificationsPage'
+import SettingsOnboardingPage from '@/pages/SettingsOnboardingPage'
+import EmployeeSelfProfilePage from '@/pages/EmployeeSelfProfilePage'
+import ReportsAttendancePage from '@/pages/ReportsAttendancePage'
+import ReportsLeavePage from '@/pages/ReportsLeavePage'
+import ReportsHeadcountPage from '@/pages/ReportsHeadcountPage'
+import ReportsRegularizationPage from '@/pages/ReportsRegularizationPage'
+import ReportsHeatmapPage from '@/pages/ReportsHeatmapPage'
 
 export default function App() {
-  const { setAuth, clearAuth, setLoading } = useAuthStore()
+  const { setAuth, clearAuth, setLoading, setPasswordRecovery } = useAuthStore()
   const navigate = useNavigate()
 
   /**
@@ -85,6 +94,8 @@ export default function App() {
         const employee = await hydrateEmployee(session.user)
         if (employee?.is_first_login) {
           navigate('/set-password', { replace: true })
+        } else if (employee) {
+          navigate('/dashboard', { replace: true })
         }
       }
 
@@ -101,12 +112,13 @@ export default function App() {
       if (event === 'PASSWORD_RECOVERY' && session?.user) {
         // User clicked the password reset link from email
         await hydrateEmployee(session.user)
+        setPasswordRecovery(true)
         navigate('/set-password', { replace: true })
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [hydrateEmployee, clearAuth, setLoading, navigate])
+  }, [hydrateEmployee, clearAuth, setLoading, setPasswordRecovery, navigate])
 
   return (
     <>
@@ -131,6 +143,9 @@ export default function App() {
               <Route element={<RequireRole allow={['owner']} />}>
                 <Route path="/employees/new" element={<NewEmployeePage />} />
                 <Route path="/employees/bulk-import" element={<BulkImportPage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'hr', 'employee']} />}>
+                <Route path="/employees/:id/edit" element={<EditEmployeePage />} />
               </Route>
               <Route path="/employees/:id" element={<EmployeeDetailPage />} />
 
@@ -165,6 +180,28 @@ export default function App() {
               <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
                 <Route path="/settings/ip-whitelist" element={<IPWhitelistPage />} />
                 <Route path="/settings/geofence" element={<GeofencePage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner']} />}>
+                <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
+                <Route path="/settings/onboarding-checklist" element={<SettingsOnboardingPage />} />
+              </Route>
+
+              {/* Employee self-profile */}
+              <Route path="/employees/me" element={<EmployeeSelfProfilePage />} />
+
+              {/* Reports */}
+              <Route element={<RequireRole allow={['owner', 'hr', 'employee']} />}>
+                <Route path="/reports/attendance" element={<ReportsAttendancePage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/reports/leave" element={<ReportsLeavePage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
+                <Route path="/reports/headcount" element={<ReportsHeadcountPage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner']} />}>
+                <Route path="/reports/regularization" element={<ReportsRegularizationPage />} />
+                <Route path="/reports/heatmap" element={<ReportsHeatmapPage />} />
               </Route>
             </Route>
           </Route>

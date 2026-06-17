@@ -40,4 +40,3 @@ enabled = true
 file_size_limit = "5MiB"
 
 [functions]
-verify_jwt = true

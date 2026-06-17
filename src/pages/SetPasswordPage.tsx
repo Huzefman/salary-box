@@ -8,6 +8,7 @@ export default function SetPasswordPage() {
   const employee = useAuthStore((s) => s.employee)
   const user = useAuthStore((s) => s.user)
   const isLoading = useAuthStore((s) => s.isLoading)
+  const isPasswordRecovery = useAuthStore((s) => s.isPasswordRecovery)
 
   // Show loading state while checking session
   if (isLoading) {
@@ -21,10 +22,12 @@ export default function SetPasswordPage() {
   // Not authenticated — redirect to login
   if (!user) return <Navigate to="/login" replace />
 
-  // Already set password — redirect to dashboard
-  if (employee && !employee.is_first_login) {
+  // Already set password AND not in password recovery mode — redirect to dashboard
+  if (employee && !employee.is_first_login && !isPasswordRecovery) {
     return <Navigate to="/dashboard" replace />
   }
+
+  const isRecovery = !employee?.is_first_login && isPasswordRecovery
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
@@ -42,12 +45,14 @@ export default function SetPasswordPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight" id="set-password-title">
-                Set your password
+                {isRecovery ? 'Reset your password' : 'Set your password'}
               </h1>
               <p className="text-sm text-muted-foreground">
-                {employee
-                  ? `Welcome, ${employee.first_name}! Please choose a secure password.`
-                  : 'Choose a secure password for your account.'}
+                {isRecovery
+                  ? 'Choose a new secure password for your account.'
+                  : employee
+                    ? `Welcome, ${employee.first_name}! Please choose a secure password.`
+                    : 'Choose a secure password for your account.'}
               </p>
             </div>
           </CardHeader>
@@ -57,7 +62,7 @@ export default function SetPasswordPage() {
         </Card>
         <p className="mt-6 text-center text-xs text-muted-foreground/60">
           <Building2 className="mr-1 inline h-3 w-3" />
-          HR Tool &mdash; First-time setup
+          HR Tool &mdash; {isRecovery ? 'Password Reset' : 'First-time setup'}
         </p>
       </div>
     </div>

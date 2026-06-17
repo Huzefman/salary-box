@@ -19,7 +19,7 @@ export const createEmployeeSchema = z.object({
   designation_id: z.string().uuid('Select a designation').optional(),
   reporting_manager_id: z.string().uuid().optional(),
   role: z.enum(['owner', 'hr', 'employee', 'system_admin']).default('employee'),
-  employment_type: z.enum(['full_time', 'part_time', 'contract', 'intern']).default('full_time'),
+  employment_type: z.enum(['full_time', 'part_time', 'contractor', 'intern']).default('full_time'),
   join_date: z.string().min(1, 'Join date is required'),
   probation_end_date: z.string().optional(),
   current_salary: z.number().positive().optional(),
@@ -37,3 +37,25 @@ export const designationSchema = z.object({
   department_id: z.string().uuid().optional(),
 })
 export type DesignationForm = z.infer<typeof designationSchema>
+
+export const lifecycleEventSchema = z.object({
+  employee_id: z.string().uuid(),
+  event_type: z.enum(['promotion', 'transfer', 'salary_revision', 'resignation', 'termination', 'rehire']),
+  effective_date: z.string().min(1, 'Effective date is required'),
+  previous_department_id: z.string().uuid().nullable().optional(),
+  new_department_id: z.string().uuid().nullable().optional(),
+  previous_designation_id: z.string().uuid().nullable().optional(),
+  new_designation_id: z.string().uuid().nullable().optional(),
+  previous_salary: z.number().positive().nullable().optional(),
+  new_salary: z.number().positive().nullable().optional(),
+  reason: z.string().nullable().optional(),
+  document_path: z.string().nullable().optional(),
+})
+
+export const uploadDocumentSchema = z.object({
+  employee_id: z.string().uuid(),
+  document_type: z.enum(['aadhar', 'pan', 'offer_letter', 'appointment_letter', 'experience_letter', 'other']),
+  file: z.instanceof(File).refine((f) => f.size <= 5 * 1024 * 1024, 'File must be under 5MB'),
+  force: z.boolean().optional(),
+  override_reason: z.string().optional(),
+})

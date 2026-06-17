@@ -10,6 +10,11 @@ export type LeaveBalance = Database['public']['Tables']['leave_balances']['Row']
 export type LeaveApplication = Database['public']['Tables']['leave_applications']['Row']
 export type Notification = Database['public']['Tables']['notifications']['Row']
 export type AppConfig = Database['public']['Tables']['app_config']['Row']
+export type EmployeeDocument = Database['public']['Tables']['employee_documents']['Row']
+export type EmployeeBankDetail = Database['public']['Tables']['employee_bank_details']['Row']
+export type EmployeeLifecycleEvent = Database['public']['Tables']['employee_lifecycle_events']['Row']
+export type EmployeeOnboardingProgress = Database['public']['Tables']['employee_onboarding_progress']['Row']
+export type OnboardingChecklistTemplate = Database['public']['Tables']['onboarding_checklist_templates']['Row']
 
 // ─── Role ─────────────────────────────────────────────────────────────────────
 export type Role = Employee['role']
@@ -48,6 +53,21 @@ export type CreateEmployeeResponse = {
   employee_id: string
   employee_code: string
   employment_status: Employee['employment_status']
+  temporary_password: string
+}
+
+export type UploadDocumentResponse = {
+  document_id: string
+  storage_path: string
+}
+
+export type AddLifecycleEventResponse = {
+  event_id: string
+}
+
+export type PresignedUrlResponse = {
+  url: string
+  expires_at: string
 }
 
 // ─── Derived display types ────────────────────────────────────────────────────
@@ -60,4 +80,25 @@ export type EmployeeWithRelations = Employee & {
 export type LeaveApplicationWithRelations = LeaveApplication & {
   leave_type: LeaveType
   employee: Pick<Employee, 'id' | 'first_name' | 'last_name' | 'employee_code'>
+}
+
+export type EmployeeDocumentWithPresignedUrl = EmployeeDocument & {
+  presigned_url?: string
+  presigned_url_expires_at?: string
+}
+
+export type EmployeeLifecycleEventWithRelations = EmployeeLifecycleEvent & {
+  performer?: Pick<Employee, 'id' | 'first_name' | 'last_name'> | null
+  previous_department?: Pick<Department, 'id' | 'name'> | null
+  new_department?: Pick<Department, 'id' | 'name'> | null
+  previous_designation?: Pick<Designation, 'id' | 'name'> | null
+  new_designation?: Pick<Designation, 'id' | 'name'> | null
+}
+
+export type OnboardingProgressWithTemplate = EmployeeOnboardingProgress & {
+  template: OnboardingChecklistTemplate | null
+}
+
+export type LeaveBalanceWithType = LeaveBalance & {
+  leave_type: LeaveType
 }

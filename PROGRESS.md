@@ -1,10 +1,10 @@
 # Progress Log
 
 ## Current State
-Date: 2026-06-15
-Active branch: feature/auth-rbac
-Milestone: M1 — Foundation (Supabase setup, migrations, RLS, auth, RBAC,
-department/designation CRUD, employee CRUD P0, sidebar shell)
+Date: 2026-06-16
+Active branch: experiment-new-agent
+Milestone: M2 — Employee Module (COMPLETE)
+Next milestone: M3 — Attendance Module
 
 ## Completed
 - All spec/context docs in `docs/` (DATABASE_SCHEMA, BUSINESS_RULES,
@@ -113,15 +113,151 @@ department/designation CRUD, employee CRUD P0, sidebar shell)
     changed build script from `tsc -b` to `tsc --noEmit`.
   - `npm run typecheck` passes clean. `npm run build` passes clean
     (592 KB JS bundle, 30 KB CSS).
+- **2026-06-15 — M1 Phase 3: Sidebar Navigation**
+  - `src/components/layout/Sidebar.tsx` fully rewritten with role-aware
+    navigation groups per SCREEN_INVENTORY.md. Owner sees full nav tree
+    (Employees, Attendance, Leave, Reports, Settings with sub-items); HR
+    sees filtered view (Employees, Attendance, Leave, Reports, Shifts);
+    Employee sees Dashboard, My Profile, My Attendance, My Leave, My
+    Reports; System Admin sees Dashboard, read-only Employees/Attendance/
+    Leave, Headcount Reports, IP Whitelist/Geofence Settings.
+  - Collapsible nav groups with expand/collapse chevrons.
+- **2026-06-15 — M1 Phase 4: Department CRUD**
+  - `src/pages/DepartmentsPage.tsx`: tree view rendering with recursive
+    DepartmentTree component. Add root/sub-department via Dialog form,
+    rename inline, soft-delete (deactivate). Max 3-level nesting enforced
+    (L0→L1→L2). Owner-only access via RequireRole.
+- **2026-06-15 — M1 Phase 5: Designation CRUD**
+  - `src/pages/DesignationsPage.tsx`: grouped by department in card grid.
+    Add/edit via Dialog with department selector, soft-delete. Owner-only.
+- **2026-06-15 — M1 Phase 6: Employee CRUD + Edge Function**
+  - `supabase/functions/create-employee/index.ts` fully implemented:
+    1. Email uniqueness check → DUPLICATE (409)
+    2. Auto employee_code (EMP-YYYY-NNNN) with year-prefixed sequential count
+    3. employment_status: future_joiner if join_date > today, else active
+    4. Insert employees row
+    5. Supabase Auth admin.createUser with temp password, email_confirm=true
+    6. Link auth_id back to employee row
+    7. Welcome email via Resend (best-effort, non-fatal on failure)
+    8. Create employee_onboarding_progress rows from active templates
+    9. Create leave_balances rows for current year for all active leave types
+  - `src/pages/NewEmployeePage.tsx`: 2-step form (Personal Info → Job
+    Details), React Hook Form + Zod, uses existing useCreateEmployee mutation.
+  - `src/pages/EmployeesPage.tsx`: searchable list with avatar, initials,
+    employee code, department, designation, status badges (Active/Probation/
+    Resigned/Terminated/Future Joiner), join date. Employee role redirects
+    to own profile. Owner sees Add Employee button.
+- **2026-06-15 — M1 Phase 7: Dashboard + Route Polish**
+  - `src/pages/DashboardPage.tsx` role-aware: Owner stat cards (headcount,
+    pending leaves, regularizations), HR dashboard (pending approvals, team
+    links), Employee dashboard (check-in/out buttons, leave balance cards,
+    upcoming leaves), System Admin (system health, quick links).
+  - Placeholder pages added for Reports (Attendance, Leave, Headcount,
+    Regularization, Heatmap), Settings (Notifications, Onboarding Checklist),
+    Employee Self-Profile.
+  - All missing routes registered in App.tsx with RequireRole guards per
+    SCREEN_INVENTORY.md access matrix.
+   - `npm run typecheck` passes clean. `npm run build` passes clean
+    (685 KB JS bundle, 31 KB CSS).
+- **2026-06-15 — Post-M1 Fix: Edge Function Deployment**
+  - Discovered `create-employee` Edge Function was only local — not deployed.
+    Frontend calls to `*/functions/v1/create-employee` failed with CORS error
+    because the Supabase API gateway had no route for the function.
+  - Fixed `supabase/config.toml` functions section syntax for CLI compatibility.
+  - Deployed via `npx supabase functions deploy create-employee` — bundles
+    `index.ts` + all `_shared/` dependencies (`auth.ts`, `response.ts`,
+    `supabase.ts`, `email.ts`) into the Supabase Edge Functions runtime.
+  - Verified deployment: OPTIONS preflight returns 200, invalid JWT returns 401.
+- **2026-06-15 — Orphaned Auth User Fix + Copy Password Dialog**
+  - **Bug:** Manually deleting an employee from the `employees` table left the
+    Supabase Auth user intact, causing `already been registered` on re-creation.
+  - **Fix:** `create-employee` now detects existing auth users via retry loop:
+    attempt `createUser` → if "already registered", `admin.listUsers()` to find
+    user → `admin.deleteUser()` → retry `createUser`. Falls back to rollback.
+  - **UX:** Replaced `toast.success` with a `Dialog` showing the temp password
+    in a monospace code block with a clipboard copy button (Check icon state).
+    Deployed to Supabase Edge Functions runtime.
+  - `npm run typecheck` and `npm run build` both pass clean.
+- **2026-06-15 — M2: Employee Detail Tabs + Edge Functions**
+  - Installed shadcn/ui: Tabs, Progress, Skeleton, Tooltip, Select, Popover, Command.
+  - Added API/hooks/types/schemas for documents, bank details, lifecycle events,
+    attendance, leave, and onboarding data.
+  - **Edge Functions implemented & deployed:**
+    - `upload-document`: MIME (PDF/JPEG/PNG) & size (≤5MB) validation, SHA-256
+      hash for PAN/Aadhar dupe detection with Owner override + audit logging.
+      Uploads to `employee-documents/{employee_id}/{uuid}.{ext}` in Storage.
+    - `add-lifecycle-event`: Role-gated event types — Owner: promotion, transfer,
+      salary_revision, resignation, termination, rehire; HR: promotion, transfer,
+      resignation. Termination checks orphaned reporting lines, sets
+      employment_status='terminated', revokes auth if immediate. Updates
+      salary/dept/designation on employee row per event type.
+    - `generate-presigned-url`: Verifies file access per role (mirrors storage
+      RLS), generates 15-min signed URL.
+    - `bulk-import-employees`: Parses CSV, validates rows (required fields, email
+      format, department/designation/manager lookup by name), batch inserts
+      employees (no auth accounts — separate welcome email flow). Returns
+      per-row error details.
+    - `update-employee`: Role-gated field permissions — Owner all fields, HR all
+      except role/current_salary/auth_id, Employee own non-sensitive only (phone,
+      personal_email, address, emergency contact, photo_url).
+  - **Employee Detail Page** (`/employees/:id`): 7-tab layout via
+    `EmployeeDetailTabs.tsx`. Role-aware: Owner/HR see all 7 tabs + action
+    buttons; System Admin read-only view; Employee self-view shows 3 tabs
+    (My Profile, My Documents, Onboarding).
+    - Overview tab: avatar, info cards, employment details grid, Edit button
+    - Documents tab: file list with download (presigned URL), upload dialog
+      with document type selector for Owner/HR
+    - Bank Details tab: masked account (XXXX), IFSC, bank name — Owner only
+    - Lifecycle tab: timeline with event type icons, old→new changes, performer
+    - Attendance tab: current month summary cards (present, absent, late, WFH)
+    - Leave tab: balance cards per type with Progress bars, pending count
+    - Onboarding tab: checklist with progress bar, completed/total badge
+  - **EmployeeSelfProfilePage** uses same `EmployeeDetailTabs` with self-view.
+  - **Edit Employee Page** (`/employees/:id/edit`): Pre-populated form with all
+    personal + job fields, accessible to Owner/HR/self. Saves via update-employee.
+  - **Bulk Import Page** (`/employees/bulk-import`): Download CSV template →
+    upload file → preview results with success count + per-row error list.
+  - Fixed `employment_type` enum mismatch: `contract` → `contractor` to match DB schema.
+  - All 5 new Edge Functions deployed to production.
+  - `npm run typecheck` and `npm run build` both pass clean (787 KB JS, 38.8 KB CSS).
+- **2026-06-16 — Auth Bug Fixes**
+  - **Bug 1 — Race condition in login flow:** `getSession()` resolved with no session
+    on page load, setting `isLoading = false`. When user logged in, `LoginForm.onSubmit`
+    navigated to `/dashboard` before `onAuthStateChange` finished hydrating the employee
+    record. `RequireAuth` saw `isLoading = false, user = null` and redirected back to
+    `/login`, leaving the user stuck on the login page.
+    - **Fix:** Removed `navigate('/dashboard')` from `LoginForm.onSubmit`. Post-login
+      navigation now happens only after `onAuthStateChange` finishes hydration, in
+      `App.tsx`. Added `setLoading(true)` before sign-in to prevent the race.
+    - Files changed: `src/features/auth/components/LoginForm.tsx`, `src/App.tsx`
+  - **Bug 2 — Trigger blocking is_first_login update:** The `enforce_employee_update()`
+    trigger blocked employees from setting `is_first_login = false` on their own row
+    during password setup, returning a 400 Bad Request.
+    - **Fix:** Removed `or new.is_first_login is distinct from old.is_first_login` from
+      the trigger's blocked-field list. Employees can now toggle `is_first_login` during
+      the set-password flow.
+    - Migration `0010_fix_employee_self_update_is_first_login.sql` created locally.
+    - Trigger updated on remote via `supabase db query`.
+  - `npm run typecheck` and `npm run build` both pass clean.
+- **2026-06-16 — Employee Detail Page Fix**
+  - **Bug:** "Employee not found" shown when clicking any employee from the list.
+    `fetchEmployee()` used `.single()` with `select(*, department:departments(id, name), ...)`
+    without explicit `!fk` join syntax. PostgREST failed to embed joined data alongside
+    the wildcard column expansion, causing the query to error.
+    - **Fix:** Changed to explicit `!department_id` / `!designation_id` FK syntax matching
+      the working list page pattern. Replaced `.single()` with `.maybeSingle()` to return
+      `null` instead of throwing on no rows. Added `error` state display in
+      `EmployeeDetailTabs` so future query failures show the actual error message.
+    - Files changed: `src/features/employees/api.ts`,
+      `src/features/employees/components/EmployeeDetailTabs.tsx`
+  - `npm run typecheck` and `npm run build` both pass clean.
 
-## In Progress
-- Nothing currently in progress.
-
-## Pending (this milestone — M1)
-- Sidebar navigation wired to real role/session data per SCREEN_INVENTORY.md
-- Department/designation CRUD (Owner only)
-- Employee CRUD (P0 fields) + `create-employee` Edge Function
-- Dashboard placeholder (role-aware sections)
+## Pending (next milestone — M3)
+- Attendance check-in/out with geofence + IP whitelist
+- Attendance dashboard (admin grid view, filters, export)
+- Regularization requests (apply, approve, reject)
+- Auto-checkout cron function
+- Shift management UI
 
 ## Decisions Made
 - 2026-06-10: Adopted `main` / `dev` / `feature/*` branch workflow per

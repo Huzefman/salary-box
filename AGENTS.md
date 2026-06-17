@@ -21,9 +21,17 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-15
-Active branch: feature/auth-rbac
-Just completed: M1 Phase 1 (bootstrap) + Phase 2 (auth flow).
+Last updated: 2026-06-16
+Active branch: experiment-new-agent
+Just completed: Auth bug fixes — race condition + trigger blocking is_first_login.
+Current session: Login flow was broken for new employees with temp passwords.
+Fixed two bugs: (1) race condition in auth flow where RequireAuth redirected to
+/login before employee hydration completed, and (2) enforce_employee_update()
+trigger blocked employees from setting is_first_login = false on password setup.
+Also fixed "Employee not found" on detail page — PostgREST `.single()` + `select(*)`
++ implicit FK joins caused query failure. Switched to explicit `!fk` syntax + `.maybeSingle()`.
+
+### Phase 1-2: Bootstrap + Auth Flow (previous session)
 - Migration `0009_bootstrap_owner` applied: created first Owner auth.users
   account (fitmantrabyamanatkagzi@gmail.com) + linked `employees` row
   (EMP-2026-0001, role=owner, is_first_login=true). Verified via execute_sql.
@@ -31,33 +39,91 @@ Just completed: M1 Phase 1 (bootstrap) + Phase 2 (auth flow).
   installed 17 UI primitives: Button, Input, Label, Card, Form, Toast, Toaster,
   Separator, Badge, Table, DropdownMenu, Sheet, ScrollArea, Avatar, Dialog,
   Sonner, Chart.
-- Built auth flow — 3 screens, all functional:
-  - LoginPage (`/login`): email+password via Supabase Auth signInWithPassword,
-    generic error messages, password visibility toggle, premium glassmorphism
-    design.
-  - SetPasswordPage (`/set-password`): forced on first login
-    (is_first_login=true), password strength indicator with 4 rules, updates
-    both Supabase Auth password and employees.is_first_login flag.
-  - ForgotPasswordPage (`/forgot-password`): Supabase Auth
-    resetPasswordForEmail, always shows success regardless of email existence.
-- App.tsx rewritten with proper session handling: onAuthStateChange for
-  SIGNED_IN / TOKEN_REFRESHED / SIGNED_OUT / PASSWORD_RECOVERY events, auto
-  employee hydration from employees table, first-login redirect logic.
-- RoleGuard.tsx: added RequireFirstPasswordSet guard wrapping AppLayout routes.
-- Sonner toast provider added globally.
-- Fixed pre-existing build issues: tsconfig.node.json composite/noEmit
-  conflict, toaster.tsx broken import path.
+- Built auth flow: LoginPage, SetPasswordPage, ForgotPasswordPage — all
+  functional with premium glassmorphism design.
+- App.tsx rewritten with onAuthStateChange handling, employee hydration,
+  first-login redirect logic.
+- RoleGuard.tsx: RequireAuth, RequireRole, RequireFirstPasswordSet.
+- Sonner toast provider, fixed tsconfig/node build issues.
+
+### Phase 3-7: Sidebar Nav + CRUD Pages + Edge Function + Dashboard
+- Sidebar (`Sidebar.tsx`) fully rewritten with role-aware navigation groups
+  per SCREEN_INVENTORY.md — Owner, HR, Employee, System Admin each see
+  their own nav tree.
+- Department CRUD (`DepartmentsPage.tsx`): tree view with add/edit/deactivate,
+  max 3 nesting levels, Owner-only.
+- Designation CRUD (`DesignationsPage.tsx`): grouped by department,
+  add/edit/deactivate, Owner-only.
+- `create-employee` Edge Function fully implemented: email uniqueness check,
+  auto EMP-YYYY-NNNN code gen, future_joiner logic, Supabase Auth account
+  creation, welcome email via Resend, onboarding progress + leave balance
+  rows.
+- `NewEmployeePage.tsx`: 2-step form (Personal Info + Job Details), React Hook
+  Form + Zod, Owner-only.
+- `EmployeesPage.tsx`: searchable employee list with avatar/code/dept/designation/
+  status badges; Employee role redirects to own profile.
+- `DashboardPage.tsx`: role-aware — Owner sees stats cards, HR sees pending
+  approvals, Employee sees check-in buttons + leave balances, System Admin
+  sees system health.
+- Placeholder pages added: Reports (Attendance/Leave/Headcount/Regularization/
+  Heatmap), Settings (Notifications/Onboarding), Employee Self-Profile.
+- All new routes registered in `App.tsx` with proper `RequireRole` guards.
+- `create-employee` Edge Function deployed to production (`hqiggiqwyxjiltltvoay`).
+  Fixed CORS issue — was failing because function was only local, not deployed.
+  Deployed via `npx supabase functions deploy create-employee`.
 - `npm run typecheck` and `npm run build` both pass clean.
-Next task: Phase 3–7 of M1 — real sidebar navigation per role (SCREEN_INVENTORY),
-department/designation CRUD (Owner only), employee CRUD (P0 fields + create-employee
-Edge Function), and dashboard placeholder.
-Known issues: `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
-reverted to a pre-scaffold state by a PR merge from `upstream/main`
-(`04bbe85`, "Merge pull request #1 from Huzefman/main") — it currently does
-NOT have the scaffold. Local `main`/`dev`/`feature/auth-rbac` and
-`origin/feature/auth-rbac` all have the full scaffold and are correct.
-Do not push local `main` to `origin/main` without reconciling this — resolve
-when `dev` merges into `main` at milestone completion (see PROGRESS.md).
+
+### Current session (2026-06-15) — M2 Employee Module
+- **Foundation:** Installed shadcn/ui Tabs, Progress, Skeleton, Tooltip, Select,
+  Popover, Command. Added API hooks/types for documents, bank details, lifecycle
+  events, attendance, leave, onboarding.
+- **Edge Functions (deployed):**
+  - `upload-document` — MIME/size validation, SHA-256 hash dupe detection for
+    PAN/Aadhar, Owner override with audit log, upload to Storage.
+  - `add-lifecycle-event` — Role-gated (Owner: all 6 types, HR: promotion/
+    transfer/resignation). Termination handles orphaned reports + immediate auth
+    revocation. Updates salary/dept/designation/status on employee row.
+  - `generate-presigned-url` — 15-min expiry, role-based access check.
+  - `bulk-import-employees` — CSV parsing, row validation, batch insert (no auth
+    accounts — send welcome emails separately).
+  - `update-employee` — Role-gated field permissions: Owner all fields, HR all
+    except role/salary/auth_id, Employee own non-sensitive only.
+- **Employee Detail Page** (`/employees/:id`): 7 tabs — Overview (info cards +
+  employment details), Documents (upload dialog + presigned URL download), Bank
+  Details (masked XXXX), Lifecycle (timeline), Attendance (monthly summary),
+  Leave (balances with progress bars), Onboarding (checklist). Role-aware:
+  Owner/HR see all 7 tabs + actions. Employee self-view shows 3 tabs.
+- **Edit Employee** (`/employees/:id/edit`): Pre-populated form, route registered
+  for Owner/HR/Employee (self). Role-gated field editing via Edge Function.
+- **Bulk Import** (`/employees/bulk-import`): Download CSV template → upload →
+  preview results with per-row errors.
+- **Self-Profile** (`/employees/me`): Uses same tabbed layout. Edit button
+  visible for all roles on own profile.
+- Committed as `b8d82fd` and `f48fa4f` on `experiment-new-agent`.
+
+### Known issues
+- `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
+  reverted to a pre-scaffold state by a PR merge from `upstream/main`
+  (`04bbe85`, "Merge pull request #1 from Huzefman/main") — it currently does
+  NOT have the scaffold. Local `main`/`dev`/`feature/auth-rbac` and
+  `origin/feature/auth-rbac` all have the full scaffold and are correct.
+  Do not push local `main` to `origin/main` without reconciling this — resolve
+  when `dev` merges into `main` at milestone completion (see PROGRESS.md).
+- RESEND_API_KEY not configured in Supabase project secrets → welcome email
+  silently fails (non-fatal try/catch).
+- Supabase Auth project setting `mailer_allow_unverified_email_sign_ins` set to
+  `true` (changed from default `false`). This was required because
+  `admin.createUser({ email_confirm: true })` was not actually confirming emails
+  when `mailer_autoconfirm` was `false` (the default), preventing new employees
+  from signing in with their temp password. The fix also added an explicit
+  `admin.updateUserById(id, { email_confirm: true })` call in the
+  `create-employee` Edge Function as defense-in-depth.
+- The `enforce_employee_update()` trigger on the remote DB has a
+  `if my_role is null then return new; end if;` guard that was added via a
+  prior ad-hoc SQL fix but is NOT reflected in the local migration files
+  (`0002_core.sql`). Migration `0010` was applied directly via `supabase db query`
+  (not through the Supabase MCP `apply_migration` tool), so the Supabase CLI
+  migration history is out of sync. Run `supabase migration repair` to reconcile.
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,
