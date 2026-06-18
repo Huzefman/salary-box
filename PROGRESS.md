@@ -1,9 +1,9 @@
 # Progress Log
 
 ## Current State
-Date: 2026-06-16
+Date: 2026-06-18
 Active branch: experiment-new-agent
-Milestone: M2 — Employee Module (COMPLETE)
+Milestone: M1 + M2 — COMPLETE (all P0/P1/P2 features built)
 Next milestone: M3 — Attendance Module
 
 ## Completed
@@ -251,6 +251,32 @@ Next milestone: M3 — Attendance Module
     - Files changed: `src/features/employees/api.ts`,
       `src/features/employees/components/EmployeeDetailTabs.tsx`
   - `npm run typecheck` and `npm run build` both pass clean.
+- **2026-06-16 — Document Upload Fix (Storage Bucket)**
+  - **Bug:** The Documents tab upload dialog showed but all uploads silently failed
+    with a 500 error. Root cause: the `employee-documents` Storage bucket never
+    existed in the Supabase project — the `upload-document` Edge Function was
+    deployed and correct, but `supabase.storage.from('employee-documents').upload()`
+    returned a bucket-not-found error.
+    - **Fix:** Created the bucket via direct SQL insert into `storage.buckets`
+      (`public: false`, `file_size_limit: 5MB`, `allowed_mime_types: [PDF, JPEG, PNG]`).
+      Added service-role-only Storage RLS policies (select/insert/update/delete) so
+      only Edge Functions can manage objects; users access files via presigned URLs.
+      Re-deployed the `upload-document` Edge Function to ensure `_shared/` deps
+      are bundled.
+    - Migration: `0011_create_employee_documents_storage_bucket.sql`
+    - `npm run typecheck` and `npm run build` both pass clean.
+- **2026-06-17 — M1 Completion: Onboarding Welcome Screen**
+  - **Remaining M1 deliverable:** The `/onboarding` page was a bare shell with a
+    TODO comment — new employees saw a blank page after setting their password.
+  - **Fix:** Built the full OnboardingPage with welcome message, onboarding
+    checklist progress (using the existing `useEmployeeOnboardingProgress` hook),
+    and a "Continue to Dashboard" button. Uses the same glassmorphism design as
+    the auth pages. Also fixed SetPasswordForm redirect to route to `/onboarding`
+    instead of `/dashboard` so employees see the welcome screen first.
+  - Files changed: `src/pages/OnboardingPage.tsx`,
+    `src/features/auth/components/SetPasswordForm.tsx`
+  - M1 is now **100% complete**.
+  - `npm run typecheck` and `npm run build` both pass clean.
 
 ## Pending (next milestone — M3)
 - Attendance check-in/out with geofence + IP whitelist
@@ -269,6 +295,12 @@ Next milestone: M3 — Attendance Module
   `${SUPABASE_ACCESS_TOKEN}`) instead of the "claude.ai Supabase" OAuth
   connector — the OAuth connector kept authenticating against the wrong
   Supabase account (cross-Google-account mismatch) with no way to redirect it.
+
+- 2026-06-18: Completed M2 final features: Activity Timeline (audit_logs-based
+  tab), Org Chart (recursive tree from reporting_manager_id), Profile Edit
+  Requests (employee self-service → HR approval via review-profile-edit EF).
+  Cleaned up test employees EMP-0005–0008 (hard delete + auth removal).
+  M1 + M2 now 100% complete.
 
 ## Known Issues
 - `origin/main` (fitmantramarketing-sys/salary-box) was reverted to a

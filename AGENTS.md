@@ -21,85 +21,135 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-16
+Last updated: 2026-06-18
 Active branch: experiment-new-agent
-Just completed: Auth bug fixes — race condition + trigger blocking is_first_login.
-Current session: Login flow was broken for new employees with temp passwords.
-Fixed two bugs: (1) race condition in auth flow where RequireAuth redirected to
-/login before employee hydration completed, and (2) enforce_employee_update()
-trigger blocked employees from setting is_first_login = false on password setup.
-Also fixed "Employee not found" on detail page — PostgREST `.single()` + `select(*)`
-+ implicit FK joins caused query failure. Switched to explicit `!fk` syntax + `.maybeSingle()`.
+Current session: M3 Phase 1 + Phase 2 + Phase 3 complete — all 10 Attendance
+Edge Functions implemented and deployed, plus employee self-service frontend
+(CheckInOutCard, AttendanceCalendar, AttendanceSummaryCards, Dashboard wired,
+RegularizationPage). M1 + M2 still 100% complete.
 
-### Phase 1-2: Bootstrap + Auth Flow (previous session)
-- Migration `0009_bootstrap_owner` applied: created first Owner auth.users
-  account (fitmantrabyamanatkagzi@gmail.com) + linked `employees` row
-  (EMP-2026-0001, role=owner, is_first_login=true). Verified via execute_sql.
-- Initialized shadcn/ui (components.json, tailwind.config, vite.config) and
-  installed 17 UI primitives: Button, Input, Label, Card, Form, Toast, Toaster,
-  Separator, Badge, Table, DropdownMenu, Sheet, ScrollArea, Avatar, Dialog,
-  Sonner, Chart.
-- Built auth flow: LoginPage, SetPasswordPage, ForgotPasswordPage — all
-  functional with premium glassmorphism design.
-- App.tsx rewritten with onAuthStateChange handling, employee hydration,
-  first-login redirect logic.
-- RoleGuard.tsx: RequireAuth, RequireRole, RequireFirstPasswordSet.
-- Sonner toast provider, fixed tsconfig/node build issues.
+### M2 — Complete Feature Set
+- **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header. Exports
+  filtered list with all relevant columns.
+- **M2-2 Onboarding Checklist CRUD:** `SettingsOnboardingPage.tsx` with add/
+  edit/deactivate/reactivate dialog for `onboarding_checklist_templates`.
+- **M2-3 App Configuration:** `AppConfigPage.tsx` with inline editable key-value
+  table (Owner only).
+- **M2-4 Add Employee Steps 3 & 4:** Expanded NewEmployeePage from 2 steps to 4 —
+  Personal Info, Job Details, Documents (optional file upload), Bank Details
+  (optional account info). Post-creation success dialog shows temp password.
+- **M2-5 Bank Details Edit:** "Edit/Add" button (Owner only) on
+  EmployeeBankDetailsTab with dialog for account holder, number, IFSC, bank name.
+  Uses direct Supabase upsert.
+- **M2-6 Advanced Filters:** Department and employment status dropdowns on
+  EmployeesPage with All/Active/Probation/Resigned/Terminated/Future Joiner.
+- **M2-7 access-revocation cron:** Deployed. Queries employees where
+  `exit_date = today AND is_active = true`, deactivates, deletes auth account.
+- **M2-8 exit-date-alert cron:** Deployed. Queries employees where
+  `exit_date = today + 7`, creates in-app notifications for Owner/HR/System Admin.
+- **M2-9 future-joiner-activation cron:** Deployed. Queries employees where
+  `employment_status = 'future_joiner' AND join_date = today`, sets to active,
+  notifies Owner/HR.
 
-### Phase 3-7: Sidebar Nav + CRUD Pages + Edge Function + Dashboard
-- Sidebar (`Sidebar.tsx`) fully rewritten with role-aware navigation groups
-  per SCREEN_INVENTORY.md — Owner, HR, Employee, System Admin each see
-  their own nav tree.
-- Department CRUD (`DepartmentsPage.tsx`): tree view with add/edit/deactivate,
-  max 3 nesting levels, Owner-only.
-- Designation CRUD (`DesignationsPage.tsx`): grouped by department,
-  add/edit/deactivate, Owner-only.
-- `create-employee` Edge Function fully implemented: email uniqueness check,
-  auto EMP-YYYY-NNNN code gen, future_joiner logic, Supabase Auth account
-  creation, welcome email via Resend, onboarding progress + leave balance
-  rows.
-- `NewEmployeePage.tsx`: 2-step form (Personal Info + Job Details), React Hook
-  Form + Zod, Owner-only.
-- `EmployeesPage.tsx`: searchable employee list with avatar/code/dept/designation/
-  status badges; Employee role redirects to own profile.
-- `DashboardPage.tsx`: role-aware — Owner sees stats cards, HR sees pending
-  approvals, Employee sees check-in buttons + leave balances, System Admin
-  sees system health.
-- Placeholder pages added: Reports (Attendance/Leave/Headcount/Regularization/
-  Heatmap), Settings (Notifications/Onboarding), Employee Self-Profile.
-- All new routes registered in `App.tsx` with proper `RequireRole` guards.
-- `create-employee` Edge Function deployed to production (`hqiggiqwyxjiltltvoay`).
-  Fixed CORS issue — was failing because function was only local, not deployed.
-  Deployed via `npx supabase functions deploy create-employee`.
-- `npm run typecheck` and `npm run build` both pass clean.
+### M2 — Remaining Features (built in previous session)
 
-### Current session (2026-06-15) — M2 Employee Module
-- **Foundation:** Installed shadcn/ui Tabs, Progress, Skeleton, Tooltip, Select,
-  Popover, Command. Added API hooks/types for documents, bank details, lifecycle
-  events, attendance, leave, onboarding.
-- **Edge Functions (deployed):**
-  - `upload-document` — MIME/size validation, SHA-256 hash dupe detection for
-    PAN/Aadhar, Owner override with audit log, upload to Storage.
-  - `add-lifecycle-event` — Role-gated (Owner: all 6 types, HR: promotion/
-    transfer/resignation). Termination handles orphaned reports + immediate auth
-    revocation. Updates salary/dept/designation/status on employee row.
-  - `generate-presigned-url` — 15-min expiry, role-based access check.
-  - `bulk-import-employees` — CSV parsing, row validation, batch insert (no auth
-    accounts — send welcome emails separately).
-  - `update-employee` — Role-gated field permissions: Owner all fields, HR all
-    except role/salary/auth_id, Employee own non-sensitive only.
-- **Employee Detail Page** (`/employees/:id`): 7 tabs — Overview (info cards +
-  employment details), Documents (upload dialog + presigned URL download), Bank
-  Details (masked XXXX), Lifecycle (timeline), Attendance (monthly summary),
-  Leave (balances with progress bars), Onboarding (checklist). Role-aware:
-  Owner/HR see all 7 tabs + actions. Employee self-view shows 3 tabs.
-- **Edit Employee** (`/employees/:id/edit`): Pre-populated form, route registered
-  for Owner/HR/Employee (self). Role-gated field editing via Edge Function.
-- **Bulk Import** (`/employees/bulk-import`): Download CSV template → upload →
-  preview results with per-row errors.
-- **Self-Profile** (`/employees/me`): Uses same tabbed layout. Edit button
-  visible for all roles on own profile.
-- Committed as `b8d82fd` and `f48fa4f` on `experiment-new-agent`.
+**Activity Timeline** — New "Activity" tab on employee detail page (Owner/HR).
+Queries `audit_logs` for the employee and renders a vertical timeline with
+action icons, field-level diffs on updates, actor name + role, and timestamps.
+(`src/features/employees/components/EmployeeActivityTab.tsx`)
+
+**Org Chart** — `/org-chart` page accessible from sidebar (Owner/HR). Recursive
+tree view built from `reporting_manager_id`. Shows avatar, name, code, role
+badge. All nodes link to employee detail. (`src/pages/OrgChartPage.tsx`)
+
+**Profile Edit Requests** — Full employee self-service flow:
+- `profile_edit_requests` table (migration `0012`) with RLS: employee inserts own
+  requests, Owner/HR reads all and updates (approve/reject).
+- `review-profile-edit` Edge Function — Owner/HR approves (applies changes via
+  `update` on `employees` table using service role) or rejects.
+- Employee sees "Request Edit" button on own profile → dialog with editable
+  fields (phone, personal_email, address, emergency contact) → submits pending
+  request.
+- HR/Owner sees "Profile Edits" sidebar link → `/employees/profile-edits` review
+  page with approve/reject buttons and optional reviewer notes.
+- (`src/pages/ProfileEditReviewsPage.tsx`,
+  `src/features/employees/mutations.ts` — `useSubmitProfileEdit`,
+  `useReviewProfileEdit`)
+
+### Cleanup Performed (previous session)
+- **Hard deleted EMP-0005–0008** (Abc Def, xyz a, Xyz a, coffee@gmail.com):
+  removed auth accounts via GoTrue Admin API (`DELETE /auth/v1/admin/users/{id}`),
+  deleted 26 audit_log rows, then deleted employee rows. Removed `deactivate-
+  employee` and `reactivate-employee` Edge Functions (undeployed + files deleted).
+  4 legitimate employees remain (EMP-0001–0004).
+
+### M3 Phase 1 — Attendance Backend (built this session)
+
+**4 shared utilities (`supabase/functions/_shared/`):**
+- `geo.ts` — `haversineDistance`, `checkGeofence` (GPS vs geofence_config),
+  `checkDrift` (>50km between check-in/out)
+- `ip.ts` — `checkIpWhitelist` (client IP vs `ip_whitelist` CIDR ranges)
+- `holiday.ts` — `isHoliday` (checks `holidays` + `employee_optional_holidays`),
+  `isWeeklyOff` (from shift's `weekly_off_days`)
+- `attendance.ts` — `computeTotalHours` (BR-ATT-05), `computeOvertime` (BR-ATT-07),
+  `computeIsLate` (BR-ATT-06), `computeStatus` (BR-ATT-04 all 9 steps)
+
+**6 Edge Functions deployed (Phase 1):**
+| Function | Type | Key logic |
+|---|---|---|
+| `check-in` | Client (owner/hr/employee) | IP whitelist → GPS geofence → shift resolution → upsert server-timestamped record → late mark |
+| `check-out` | Client (owner/hr/employee) | Find today's record → verify not already done → compute hours/overtime → GPS drift check |
+| `log-wfh` | Client (owner/hr/employee) | Upsert `is_wfh=true` for today, reject if `on_leave`, don't touch `check_in_time` |
+| `auto-checkout` | Cron (23:59 daily) | Close incomplete records → set `check_out_time` from `app_config.auto_checkout_time` → notify each employee |
+| `compute-attendance-status` | Cron (00:05 daily) | Recompute yesterday's status/total_hours/overtime/is_late per BR-ATT-04 for all records |
+| `manual-attendance` | Client (owner/hr) | Upsert past record with provided check_in/out, compute all fields server-side, `is_manually_entered=true` |
+
+**4 Edge Functions deployed (Phase 2):**
+| Function | Type | Key logic |
+|---|---|---|
+| `submit-regularization` | Client (employee/owner/hr) | Fetch attendance record → validate within regularization_window_days → check no pending request → insert request → notify admins |
+| `review-regularization` | Client (owner/hr) | Validate request status → if approve: update attendance record with requested values, recompute hours/is_late → notify employee |
+| `late-mark-deduction` | Cron (monthly 1st) | Count is_late=true per employee in previous month → if count >= late_mark_threshold → deduct 0.5 from CL/EL/LWP balance |
+| `incomplete-attendance-reminder` | Cron (09:00 daily) | Query yesterday's incomplete records → send in-app notification to each employee |
+
+**DB changes:**
+- Verified `is_default` column on `shifts` (already existed)
+- Seeded "General Shift" as default (09:00–18:00, Sun off, 15 min grace, 3 late-mark threshold)
+- Created `idx_shifts_default` unique partial index via Management API
+
+### M3 Phase 3 — Employee Self-Service Frontend (built this session)
+
+**3 new components (`src/features/attendance/components/`):**
+| Component | What it does |
+|---|---|
+| `CheckInOutCard` | Check-in/check-out/WFH buttons with loading states, today's status display, calls Edge Functions via mutations |
+| `AttendanceSummaryCards` | 6 stat cards per month: Present, Absent, WFH, Late, On Leave, Half Day |
+| `AttendanceCalendar` | Month selector, colour-coded day grid, legend + click-to-view day detail dialog (times, hours, overtime, flags) |
+
+**Updated pages:**
+- `AttendancePage.tsx` — Composes all 3 components with month navigation, `/attendance` route
+- `DashboardPage.tsx` — Employee view: wired Check In/Check Out/WFH buttons to real Edge Function calls with toast feedback
+- `RegularizationPage.tsx` — Full page with new request dialog (status, check-in/out, reason) + request history list with status badges
+
+**Updated feature files:**
+- `api.ts` — Added `fetchRegularizationHistory`, `fetchAppConfig`
+- `hooks.ts` — Added `useMyAttendanceCurrentMonth`, `useRegularizationHistory`, `useAppConfig`
+- `mutations.ts` — Fixed coords type to `{ latitude?: number; longitude?: number }` for empty-object calls
+
+### DB schema changes (cumulative)
+- `profile_edit_requests` table added (migration `0012_create_profile_edit_requests`)
+- `shifts.is_default` (already existed from scaffold)
+- Types regenerated (`src/types/database.types.ts`)
+
+### Edge Functions Deployed (cumulative)
+- M1/M2: `add-lifecycle-event`, `upload-document`, `generate-presigned-url`,
+  `bulk-import-employees`, `update-employee`, `create-employee`,
+  `access-revocation`, `exit-date-alert`, `future-joiner-activation`,
+  `review-profile-edit`
+- **M3:** `check-in`, `check-out`, `log-wfh`, `auto-checkout`,
+  `compute-attendance-status`, `manual-attendance`,
+  `submit-regularization`, `review-regularization`,
+  `late-mark-deduction`, `incomplete-attendance-reminder`
 
 ### Known issues
 - `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
@@ -108,22 +158,25 @@ Also fixed "Employee not found" on detail page — PostgREST `.single()` + `sele
   NOT have the scaffold. Local `main`/`dev`/`feature/auth-rbac` and
   `origin/feature/auth-rbac` all have the full scaffold and are correct.
   Do not push local `main` to `origin/main` without reconciling this — resolve
-  when `dev` merges into `main` at milestone completion (see PROGRESS.md).
+  when `dev` merges into `main` at milestone completion.
 - RESEND_API_KEY not configured in Supabase project secrets → welcome email
   silently fails (non-fatal try/catch).
 - Supabase Auth project setting `mailer_allow_unverified_email_sign_ins` set to
-  `true` (changed from default `false`). This was required because
-  `admin.createUser({ email_confirm: true })` was not actually confirming emails
-  when `mailer_autoconfirm` was `false` (the default), preventing new employees
-  from signing in with their temp password. The fix also added an explicit
-  `admin.updateUserById(id, { email_confirm: true })` call in the
-  `create-employee` Edge Function as defense-in-depth.
-- The `enforce_employee_update()` trigger on the remote DB has a
-  `if my_role is null then return new; end if;` guard that was added via a
-  prior ad-hoc SQL fix but is NOT reflected in the local migration files
-  (`0002_core.sql`). Migration `0010` was applied directly via `supabase db query`
-  (not through the Supabase MCP `apply_migration` tool), so the Supabase CLI
-  migration history is out of sync. Run `supabase migration repair` to reconcile.
+  `true` — required because `admin.createUser({ email_confirm: true })` wasn't
+  confirming emails when `mailer_autoconfirm` was `false`. Function also calls
+  `admin.updateUserById(id, { email_confirm: true })` as defense-in-depth.
+- Migration naming conflict: two `0010_*` files (first superseded by second).
+  Both applied via `supabase db query`, CLI history out of sync with remote.
+  Run `supabase migration repair` to reconcile.
+- 7 cron functions deployed but schedules not configured in Supabase Dashboard:
+  access-revocation (23:55 IST), exit-date-alert (09:15 IST),
+  future-joiner-activation (00:01 IST), auto-checkout (23:59 IST),
+  compute-attendance-status (00:05 IST), late-mark-deduction (monthly 1st 00:10 IST),
+  incomplete-attendance-reminder (09:00 IST).
+- Geolocation not wired in frontend — CheckInOutCard and Dashboard check-in/out
+  buttons call Edge Functions with empty coords. Needs
+  `navigator.geolocation.getCurrentPosition()` integration to pass lat/lng for
+  geofence validation.
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,
@@ -167,7 +220,9 @@ supabase/
   migrations/           ← numbered SQL migrations
   seed.sql
   functions/
-    _shared/            ← supabase.ts, auth.ts, response.ts, email.ts
+    _shared/            ← supabase.ts, auth.ts, response.ts, email.ts,
+                           notify.ts, audit.ts, shift.ts, working-days.ts,
+                           geo.ts, ip.ts, holiday.ts, attendance.ts
     <function-name>/index.ts
 ```
 

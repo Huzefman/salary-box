@@ -9,6 +9,7 @@ import type {
   OnboardingChecklistTemplate,
   LeaveBalanceWithType,
   AttendanceRecord,
+  AuditLog,
 } from '@/types'
 
 export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
@@ -139,6 +140,20 @@ export async function fetchEmployeeAttendanceCurrentMonth(employeeId: string): P
     .order('date')
   if (error) throw error
   return data ?? []
+}
+
+export async function fetchEmployeeActivity(employeeId: string) {
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .select(`
+      *,
+      actor:employees!actor_id(id, first_name, last_name)
+    `)
+    .eq('record_id', employeeId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return data as unknown as (AuditLog & { actor: { id: string; first_name: string; last_name: string } | null })[]
 }
 
 export async function fetchEmployeeLeaveBalancesWithType(employeeId: string): Promise<LeaveBalanceWithType[]> {

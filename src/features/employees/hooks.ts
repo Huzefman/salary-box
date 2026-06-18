@@ -9,6 +9,7 @@ import {
   fetchEmployeeLifecycleEvents,
   fetchEmployeeBankDetails,
   fetchEmployeeOnboardingProgress,
+  fetchEmployeeActivity,
   fetchEmployeeAttendanceCurrentMonth,
   fetchEmployeeLeaveBalancesWithType,
 } from './api'
@@ -77,6 +78,14 @@ export function useEmployeeOnboardingProgress(employeeId: string) {
   return useQuery({
     queryKey: ['employees', 'onboarding', employeeId],
     queryFn: () => fetchEmployeeOnboardingProgress(employeeId),
+    enabled: !!employeeId,
+  })
+}
+
+export function useEmployeeActivity(employeeId: string) {
+  return useQuery({
+    queryKey: ['employees', 'activity', employeeId],
+    queryFn: () => fetchEmployeeActivity(employeeId),
     enabled: !!employeeId,
   })
 }

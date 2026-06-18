@@ -1,5 +1,9 @@
 import { getActor, assertRole } from '../_shared/auth.ts'
 import { ok, cors, handleError } from '../_shared/response.ts'
+import { getServiceClient } from '../_shared/supabase.ts'
+import { resolveShift } from '../_shared/shift.ts'
+import { checkDrift } from '../_shared/geo.ts'
+import { computeTotalHours, computeOvertimeFromShift } from '../_shared/attendance.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
@@ -7,22 +11,82 @@ Deno.serve(async (req: Request) => {
   try {
     const actor = await getActor(req)
     assertRole(actor, ['owner', 'hr', 'employee'])
-    await req.json().catch(() => ({}))
+    const { latitude, longitude } = await req.json().catch(() => ({}))
 
-    // TODO: implement per docs/EDGE_FUNCTIONS.md "check-out"
-    // 1. Find today's attendance_records row for this employee -> NOT_FOUND if none
-    // 2. If check_out_time already set -> CONFLICT
-    // 3. Set check_out_time = now() server-side
-    // 4. Compute total_hours (BR-ATT-05) and overtime_hours (BR-ATT-07)
-    // 5. Update check_out_lat / check_out_lng
-    // 6. GPS drift check: if distance between check-in and check-out > 50km -> is_geo_flagged = true
+    const today = new Date().toISOString().slice(0, 10)
+    const supabase = getServiceClient()
+
+    const { data: record, error: findError } = await supabase
+      .from('attendance_records')
+      .select('*')
+      .eq('employee_id', actor.actorId)
+      .eq('date', today)
+      .maybeSingle()
+
+    if (findError || !record) {
+      throw { code: 'NOT_FOUND', message: 'No check-in record found for today.', status: 404 }
+    }
+
+    if (record.check_out_time) {
+      throw { code: 'CONFLICT', message: 'Already checked out today.', status: 409 }
+    }
+
+    const now = new Date().toISOString()
+    const shift = await resolveShift(actor.actorId, today)
+
+    const totalHours = computeTotalHours(
+      record.check_in_time,
+      now,
+      shift.break_minutes,
+      shift.is_night_shift
+    )
+    const overtimeHours = computeOvertimeFromShift(
+      totalHours,
+      shift.start_time,
+      shift.end_time,
+      shift.break_minutes
+    )
+
+    let isGeoFlagged = record.is_geo_flagged
+    if (
+      latitude != null &&
+      longitude != null &&
+      record.check_in_lat != null &&
+      record.check_in_lng != null
+    ) {
+      const drifted = checkDrift(
+        Number(record.check_in_lat),
+        Number(record.check_in_lng),
+        Number(latitude),
+        Number(longitude)
+      )
+      if (drifted) isGeoFlagged = true
+    }
+
+    const updates: Record<string, unknown> = {
+      check_out_time: now,
+      total_hours: totalHours,
+      overtime_hours: overtimeHours,
+      is_geo_flagged: isGeoFlagged,
+    }
+    if (latitude != null) updates.check_out_lat = Number(latitude)
+    if (longitude != null) updates.check_out_lng = Number(longitude)
+
+    const { data: updated, error: updateError } = await supabase
+      .from('attendance_records')
+      .update(updates)
+      .eq('id', record.id)
+      .select('id, check_out_time, total_hours, overtime_hours, is_geo_flagged')
+      .single()
+
+    if (updateError) throw updateError
 
     return ok({
-      attendance_record_id: null,
-      check_out_time: null,
-      total_hours: 0,
-      overtime_hours: 0,
-      is_geo_flagged: false,
+      attendance_record_id: updated.id,
+      check_out_time: updated.check_out_time,
+      total_hours: updated.total_hours,
+      overtime_hours: updated.overtime_hours,
+      is_geo_flagged: updated.is_geo_flagged,
     })
   } catch (e) {
     return handleError(e)

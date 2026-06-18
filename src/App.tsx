@@ -15,6 +15,7 @@ import OnboardingPage from '@/pages/OnboardingPage'
 // App pages
 import DashboardPage from '@/pages/DashboardPage'
 import EmployeesPage from '@/pages/EmployeesPage'
+import OrgChartPage from '@/pages/OrgChartPage'
 import EmployeeDetailPage from '@/pages/EmployeeDetailPage'
 import NewEmployeePage from '@/pages/NewEmployeePage'
 import EditEmployeePage from '@/pages/EditEmployeePage'
@@ -38,6 +39,7 @@ import GeofencePage from '@/pages/GeofencePage'
 import SettingsNotificationsPage from '@/pages/SettingsNotificationsPage'
 import SettingsOnboardingPage from '@/pages/SettingsOnboardingPage'
 import EmployeeSelfProfilePage from '@/pages/EmployeeSelfProfilePage'
+import ProfileEditReviewsPage from '@/pages/ProfileEditReviewsPage'
 import ReportsAttendancePage from '@/pages/ReportsAttendancePage'
 import ReportsLeavePage from '@/pages/ReportsLeavePage'
 import ReportsHeadcountPage from '@/pages/ReportsHeadcountPage'
@@ -95,7 +97,14 @@ export default function App() {
         if (employee?.is_first_login) {
           navigate('/set-password', { replace: true })
         } else if (employee) {
-          navigate('/dashboard', { replace: true })
+          // If the user just completed set-password, don't override the
+          // onboarding navigation — SetPasswordForm handles it.
+          const isPostPasswordSetup = useAuthStore.getState().isPostPasswordSetup
+          if (isPostPasswordSetup) {
+            useAuthStore.getState().setPostPasswordSetup(false)
+          } else {
+            navigate('/dashboard', { replace: true })
+          }
         }
       }
 
@@ -140,6 +149,9 @@ export default function App() {
 
               {/* Employees */}
               <Route path="/employees" element={<EmployeesPage />} />
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/org-chart" element={<OrgChartPage />} />
+              </Route>
               <Route element={<RequireRole allow={['owner']} />}>
                 <Route path="/employees/new" element={<NewEmployeePage />} />
                 <Route path="/employees/bulk-import" element={<BulkImportPage />} />
@@ -188,6 +200,9 @@ export default function App() {
 
               {/* Employee self-profile */}
               <Route path="/employees/me" element={<EmployeeSelfProfilePage />} />
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/employees/profile-edits" element={<ProfileEditReviewsPage />} />
+              </Route>
 
               {/* Reports */}
               <Route element={<RequireRole allow={['owner', 'hr', 'employee']} />}>

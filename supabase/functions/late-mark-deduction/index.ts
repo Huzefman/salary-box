@@ -1,17 +1,122 @@
 import { ok, cors, handleError } from '../_shared/response.ts'
+import { getServiceClient } from '../_shared/supabase.ts'
 
-// Cron: 1st of each month at 00:10 IST
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
 
   try {
-    // TODO: implement per docs/EDGE_FUNCTIONS.md "late-mark-deduction" (BR-ATT-06)
-    // 1. For each active employee: count is_late = true records in the previous month
-    // 2. If count >= shift.late_mark_threshold: deduct 0.5 days from leave balance
-    //    (CL first, then EL, then LWP)
-    // 3. Log deduction to leave_balances.adjusted with reason 'late_mark_deduction'
+    const supabase = getServiceClient()
+    const now = new Date()
 
-    return ok({ processed: 0 })
+    const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+    const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+    const monthStart = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-01`
+    const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+
+    const { data: employees } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('is_active', true)
+
+    if (!employees || employees.length === 0) {
+      return ok({ processed: 0 })
+    }
+
+    // Get leave type IDs for priority deduction order
+    const { data: leaveTypes } = await supabase
+      .from('leave_types')
+      .select('id, code')
+      .in('code', ['CL', 'EL', 'LWP'])
+
+    if (!leaveTypes || leaveTypes.length === 0) {
+      return ok({ processed: 0, message: 'No CL/EL/LWP leave types configured.' })
+    }
+
+    const clType = leaveTypes.find((lt) => lt.code === 'CL')
+    const elType = leaveTypes.find((lt) => lt.code === 'EL')
+    const lwpType = leaveTypes.find((lt) => lt.code === 'LWP')
+    const deductionPriority = [clType, elType, lwpType].filter(Boolean)
+
+    const currentYear = now.getFullYear()
+    let processed = 0
+
+    for (const emp of employees) {
+      const { data: lateRecord } = await supabase
+        .from('attendance_records')
+        .select('is_late, shift_id')
+        .eq('employee_id', emp.id)
+        .eq('is_late', true)
+        .gte('date', monthStart)
+        .lt('date', monthEnd)
+
+      if (!lateRecord || lateRecord.length === 0) continue
+
+      // Get employee's shift threshold
+      let threshold = 3
+
+      // Try to resolve shift for the employee - use a recent date to get the shift
+      const { data: recentRecord } = await supabase
+        .from('attendance_records')
+        .select('shift_id')
+        .eq('employee_id', emp.id)
+        .not('shift_id', 'is', null)
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (recentRecord?.shift_id) {
+        const { data: shift } = await supabase
+          .from('shifts')
+          .select('late_mark_threshold')
+          .eq('id', recentRecord.shift_id)
+          .single()
+
+        if (shift) threshold = shift.late_mark_threshold
+      } else {
+        const { data: defaultShift } = await supabase
+          .from('shifts')
+          .select('late_mark_threshold')
+          .eq('is_default', true)
+          .maybeSingle()
+
+        if (defaultShift) threshold = defaultShift.late_mark_threshold
+      }
+
+      if (lateRecord.length < threshold) continue
+
+      // Deduct 0.5 from leave balance — CL first, then EL, then LWP
+      for (const lt of deductionPriority) {
+        if (!lt) continue
+        const { data: balance } = await supabase
+          .from('leave_balances')
+          .select('id, opening_balance, accrued, taken, pending, adjusted')
+          .eq('employee_id', emp.id)
+          .eq('leave_type_id', lt.id)
+          .eq('year', currentYear)
+          .maybeSingle()
+
+        if (!balance) continue
+
+        const available = balance.opening_balance + balance.accrued + balance.adjusted - balance.taken - balance.pending
+        if (available <= 0) continue
+
+        const deduction = Math.min(0.5, available)
+
+        const { error } = await supabase
+          .from('leave_balances')
+          .update({
+            adjusted: (balance.adjusted || 0) - deduction,
+          })
+          .eq('id', balance.id)
+
+        if (!error) {
+          processed++
+          break
+        }
+      }
+    }
+
+    return ok({ processed })
   } catch (e) {
     return handleError(e)
   }

@@ -15,6 +15,7 @@ export type EmployeeBankDetail = Database['public']['Tables']['employee_bank_det
 export type EmployeeLifecycleEvent = Database['public']['Tables']['employee_lifecycle_events']['Row']
 export type EmployeeOnboardingProgress = Database['public']['Tables']['employee_onboarding_progress']['Row']
 export type OnboardingChecklistTemplate = Database['public']['Tables']['onboarding_checklist_templates']['Row']
+export type AuditLog = Database['public']['Tables']['audit_logs']['Row']
 
 // ─── Role ─────────────────────────────────────────────────────────────────────
 export type Role = Employee['role']
