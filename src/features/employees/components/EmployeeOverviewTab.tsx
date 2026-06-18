@@ -1,13 +1,27 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Pencil } from 'lucide-react'
+import { Pencil, SendHorizonal } from 'lucide-react'
+import { toast } from 'sonner'
 import { useRole } from '@/hooks/useRole'
 import { useAuthStore } from '@/hooks/useAuth'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Loader2 } from 'lucide-react'
 import { getEmployeeFullName, getEmploymentStatusLabel } from '@/features/employees/utils'
+import { useSubmitProfileEdit } from '@/features/employees/mutations'
 import type { EmployeeWithRelations } from '@/types'
 
 type Props = { employee: EmployeeWithRelations }
@@ -25,10 +39,13 @@ function statusVariant(status: string) {
 
 export function EmployeeOverviewTab({ employee }: Props) {
   const initials = `${employee.first_name[0]}${employee.last_name[0]}`.toUpperCase()
-  const { isOwner, isHR } = useRole()
+  const { isOwner, isHR, role } = useRole()
   const currentEmployee = useAuthStore((s) => s.employee)
   const isOwnProfile = currentEmployee?.id === employee.id
   const canEdit = isOwner || isHR || isOwnProfile
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editFields, setEditFields] = useState<Record<string, string>>({})
+  const submitEdit = useSubmitProfileEdit()
 
   return (
     <div className="space-y-6">
@@ -51,10 +68,15 @@ export function EmployeeOverviewTab({ employee }: Props) {
                 </div>
               </div>
             </div>
-            {canEdit && (
+            {canEdit && (isOwner || isHR) && (
               <Link to={`/employees/${employee.id}/edit`}>
                 <Button size="sm" variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
               </Link>
+            )}
+            {canEdit && role === 'employee' && isOwnProfile && (
+              <Button size="sm" variant="outline" onClick={() => { setEditFields({}); setEditDialogOpen(true) }}>
+                <SendHorizonal className="mr-2 h-4 w-4" />Request Edit
+              </Button>
             )}
           </div>
         </CardHeader>
@@ -135,6 +157,83 @@ export function EmployeeOverviewTab({ employee }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Request Profile Edit</DialogTitle>
+            <DialogDescription>
+              Fill in only the fields you want to change. HR will review your request.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2 overflow-y-auto max-h-[55vh] pr-1">
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input value={editFields.phone ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, phone: e.target.value }))} placeholder={employee.phone ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Personal Email</Label>
+              <Input value={editFields.personal_email ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, personal_email: e.target.value }))} placeholder={employee.personal_email ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Address Line 1</Label>
+              <Input value={editFields.address_line1 ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, address_line1: e.target.value }))} placeholder={employee.address_line1 ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Address Line 2</Label>
+              <Input value={editFields.address_line2 ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, address_line2: e.target.value }))} placeholder={employee.address_line2 ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>City</Label>
+              <Input value={editFields.city ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, city: e.target.value }))} placeholder={employee.city ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>State</Label>
+              <Input value={editFields.state ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, state: e.target.value }))} placeholder={employee.state ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pincode</Label>
+              <Input value={editFields.pincode ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, pincode: e.target.value }))} placeholder={employee.pincode ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Emergency Contact Name</Label>
+              <Input value={editFields.emergency_contact_name ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, emergency_contact_name: e.target.value }))} placeholder={employee.emergency_contact_name ?? 'Not set'} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Emergency Contact Phone</Label>
+              <Input value={editFields.emergency_contact_phone ?? ''} onChange={(e) => setEditFields((f) => ({ ...f, emergency_contact_phone: e.target.value }))} placeholder={employee.emergency_contact_phone ?? 'Not set'} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button
+              disabled={Object.keys(editFields).length === 0 || submitEdit.isPending}
+              onClick={() => {
+                const filled = Object.fromEntries(Object.entries(editFields).filter(([, v]) => v.trim()))
+                if (Object.keys(filled).length === 0) {
+                  toast.error('Fill in at least one field to request a change')
+                  return
+                }
+                submitEdit.mutate(
+                  { employee_id: employee.id, requested_changes: filled },
+                  {
+                    onSuccess: () => {
+                      toast.success('Edit request submitted for HR review')
+                      setEditDialogOpen(false)
+                    },
+                    onError: (err) => {
+                      const error = err as { message?: string }
+                      toast.error(error.message ?? 'Failed to submit request')
+                    },
+                  }
+                )
+              }}
+            >
+              {submitEdit.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting…</> : 'Submit for Review'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

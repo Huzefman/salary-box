@@ -21,84 +21,87 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 Active branch: experiment-new-agent
-Just completed: M1 completed — Onboarding first-login screen built.
-Current session: Completed M1 by building the onboarding welcome screen
-(`/onboarding`) that new employees see after setting their password. Shows
-onboarding checklist progress with required/completed items. Also fixed the
-SetPasswordForm redirect to route to `/onboarding` instead of `/dashboard` so
-employees see the welcome screen before the dashboard. M1 now 100% complete.
+Current session: Completed all remaining M2 features — Activity Timeline, Org
+Chart, Profile Edit Requests. Also deleted 4 test employees (EMP-0005–0008)
+with full cleanup (auth accounts, audit logs, DB rows). M1 + M2 100% complete.
 
-### Phase 1-2: Bootstrap + Auth Flow (previous session)
-- Migration `0009_bootstrap_owner` applied: created first Owner auth.users
-  account (fitmantrabyamanatkagzi@gmail.com) + linked `employees` row
-  (EMP-2026-0001, role=owner, is_first_login=true). Verified via execute_sql.
-- Initialized shadcn/ui (components.json, tailwind.config, vite.config) and
-  installed 17 UI primitives: Button, Input, Label, Card, Form, Toast, Toaster,
-  Separator, Badge, Table, DropdownMenu, Sheet, ScrollArea, Avatar, Dialog,
-  Sonner, Chart.
-- Built auth flow: LoginPage, SetPasswordPage, ForgotPasswordPage — all
-  functional with premium glassmorphism design.
-- App.tsx rewritten with onAuthStateChange handling, employee hydration,
-  first-login redirect logic.
-- RoleGuard.tsx: RequireAuth, RequireRole, RequireFirstPasswordSet.
-- Sonner toast provider, fixed tsconfig/node build issues.
+### M2 — Complete Feature Set
+- **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header. Exports
+  filtered list with all relevant columns.
+- **M2-2 Onboarding Checklist CRUD:** `SettingsOnboardingPage.tsx` with add/
+  edit/deactivate/reactivate dialog for `onboarding_checklist_templates`.
+- **M2-3 App Configuration:** `AppConfigPage.tsx` with inline editable key-value
+  table (Owner only).
+- **M2-4 Add Employee Steps 3 & 4:** Expanded NewEmployeePage from 2 steps to 4 —
+  Personal Info, Job Details, Documents (optional file upload), Bank Details
+  (optional account info). Post-creation success dialog shows temp password.
+- **M2-5 Bank Details Edit:** "Edit/Add" button (Owner only) on
+  EmployeeBankDetailsTab with dialog for account holder, number, IFSC, bank name.
+  Uses direct Supabase upsert.
+- **M2-6 Advanced Filters:** Department and employment status dropdowns on
+  EmployeesPage with All/Active/Probation/Resigned/Terminated/Future Joiner.
+- **M2-7 access-revocation cron:** Deployed. Queries employees where
+  `exit_date = today AND is_active = true`, deactivates, deletes auth account.
+- **M2-8 exit-date-alert cron:** Deployed. Queries employees where
+  `exit_date = today + 7`, creates in-app notifications for Owner/HR/System Admin.
+- **M2-9 future-joiner-activation cron:** Deployed. Queries employees where
+  `employment_status = 'future_joiner' AND join_date = today`, sets to active,
+  notifies Owner/HR.
 
-### Phase 3-7: Sidebar Nav + CRUD Pages + Edge Function + Dashboard
-- Sidebar (`Sidebar.tsx`) fully rewritten with role-aware navigation groups
-  per SCREEN_INVENTORY.md — Owner, HR, Employee, System Admin each see
-  their own nav tree.
-- Department CRUD (`DepartmentsPage.tsx`): tree view with add/edit/deactivate,
-  max 3 nesting levels, Owner-only.
-- Designation CRUD (`DesignationsPage.tsx`): grouped by department,
-  add/edit/deactivate, Owner-only.
-- `create-employee` Edge Function fully implemented: email uniqueness check,
-  auto EMP-YYYY-NNNN code gen, future_joiner logic, Supabase Auth account
-  creation, welcome email via Resend, onboarding progress + leave balance
-  rows.
-- `NewEmployeePage.tsx`: 2-step form (Personal Info + Job Details), React Hook
-  Form + Zod, Owner-only.
-- `EmployeesPage.tsx`: searchable employee list with avatar/code/dept/designation/
-  status badges; Employee role redirects to own profile.
-- `DashboardPage.tsx`: role-aware — Owner sees stats cards, HR sees pending
-  approvals, Employee sees check-in buttons + leave balances, System Admin
-  sees system health.
-- Placeholder pages added: Reports (Attendance/Leave/Headcount/Regularization/
-  Heatmap), Settings (Notifications/Onboarding), Employee Self-Profile.
-- All new routes registered in `App.tsx` with proper `RequireRole` guards.
-- `create-employee` Edge Function deployed to production (`hqiggiqwyxjiltltvoay`).
-  Fixed CORS issue — was failing because function was only local, not deployed.
-  Deployed via `npx supabase functions deploy create-employee`.
-- `npm run typecheck` and `npm run build` both pass clean.
+### M2 — Remaining Features (built this session)
 
-### Current session (2026-06-15) — M2 Employee Module
-- **Foundation:** Installed shadcn/ui Tabs, Progress, Skeleton, Tooltip, Select,
-  Popover, Command. Added API hooks/types for documents, bank details, lifecycle
-  events, attendance, leave, onboarding.
-- **Edge Functions (deployed):**
-  - `upload-document` — MIME/size validation, SHA-256 hash dupe detection for
-    PAN/Aadhar, Owner override with audit log, upload to Storage.
-  - `add-lifecycle-event` — Role-gated (Owner: all 6 types, HR: promotion/
-    transfer/resignation). Termination handles orphaned reports + immediate auth
-    revocation. Updates salary/dept/designation/status on employee row.
-  - `generate-presigned-url` — 15-min expiry, role-based access check.
-  - `bulk-import-employees` — CSV parsing, row validation, batch insert (no auth
-    accounts — send welcome emails separately).
-  - `update-employee` — Role-gated field permissions: Owner all fields, HR all
-    except role/salary/auth_id, Employee own non-sensitive only.
-- **Employee Detail Page** (`/employees/:id`): 7 tabs — Overview (info cards +
-  employment details), Documents (upload dialog + presigned URL download), Bank
-  Details (masked XXXX), Lifecycle (timeline), Attendance (monthly summary),
-  Leave (balances with progress bars), Onboarding (checklist). Role-aware:
-  Owner/HR see all 7 tabs + actions. Employee self-view shows 3 tabs.
-- **Edit Employee** (`/employees/:id/edit`): Pre-populated form, route registered
-  for Owner/HR/Employee (self). Role-gated field editing via Edge Function.
-- **Bulk Import** (`/employees/bulk-import`): Download CSV template → upload →
-  preview results with per-row errors.
-- **Self-Profile** (`/employees/me`): Uses same tabbed layout. Edit button
-  visible for all roles on own profile.
-- Committed as `b8d82fd` and `f48fa4f` on `experiment-new-agent`.
+**Activity Timeline** — New "Activity" tab on employee detail page (Owner/HR).
+Queries `audit_logs` for the employee and renders a vertical timeline with
+action icons, field-level diffs on updates, actor name + role, and timestamps.
+(`src/features/employees/components/EmployeeActivityTab.tsx`)
+
+**Org Chart** — `/org-chart` page accessible from sidebar (Owner/HR). Recursive
+tree view built from `reporting_manager_id`. Shows avatar, name, code, role
+badge. All nodes link to employee detail. (`src/pages/OrgChartPage.tsx`)
+
+**Profile Edit Requests** — Full employee self-service flow:
+- `profile_edit_requests` table (migration `0012`) with RLS: employee inserts own
+  requests, Owner/HR reads all and updates (approve/reject).
+- `review-profile-edit` Edge Function — Owner/HR approves (applies changes via
+  `update` on `employees` table using service role) or rejects.
+- Employee sees "Request Edit" button on own profile → dialog with editable
+  fields (phone, personal_email, address, emergency contact) → submits pending
+  request.
+- HR/Owner sees "Profile Edits" sidebar link → `/employees/profile-edits` review
+  page with approve/reject buttons and optional reviewer notes.
+- (`src/pages/ProfileEditReviewsPage.tsx`,
+  `src/features/employees/mutations.ts` — `useSubmitProfileEdit`,
+  `useReviewProfileEdit`)
+
+### Cleanup Performed
+- **Hard deleted EMP-0005–0008** (Abc Def, xyz a, Xyz a, coffee@gmail.com):
+  removed auth accounts via GoTrue Admin API (`DELETE /auth/v1/admin/users/{id}`),
+  deleted 26 audit_log rows, then deleted employee rows. Removed `deactivate-
+  employee` and `reactivate-employee` Edge Functions (undeployed + files deleted).
+  4 legitimate employees remain (EMP-0001–0004).
+
+### DB schema changes
+- `profile_edit_requests` table added (migration `0012_create_profile_edit_requests`)
+- Types regenerated (`src/types/database.types.ts`)
+
+### Edge Functions (deployed)
+- `add-lifecycle-event` — Role-gated lifecycle events (promotion, transfer,
+  salary revision, resignation, termination, rehire). Termination handles
+  orphaned reports + immediate auth revocation.
+- `upload-document` — MIME/size validation, SHA-256 hash dupe detection,
+  Owner override with audit log, upload to Storage.
+- `generate-presigned-url` — 15-min expiry, role-based access check.
+- `bulk-import-employees` — CSV parsing, row validation, batch insert.
+- `update-employee` — Role-gated field permissions: Owner all, HR all except
+  role/salary/auth_id, Employee own non-sensitive only.
+- `create-employee` — Full employee creation with auth account, welcome email,
+  onboarding progress rows, leave balance rows.
+- `access-revocation` — Daily cron: deactivates employees on exit_date.
+- `exit-date-alert` — Daily cron: notifies admins of upcoming exits.
+- `future-joiner-activation` — Daily cron: activates future_joiners on join_date.
+- `review-profile-edit` — Owner/HR approve/reject profile edit requests.
 
 ### Known issues
 - `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
@@ -107,22 +110,19 @@ employees see the welcome screen before the dashboard. M1 now 100% complete.
   NOT have the scaffold. Local `main`/`dev`/`feature/auth-rbac` and
   `origin/feature/auth-rbac` all have the full scaffold and are correct.
   Do not push local `main` to `origin/main` without reconciling this — resolve
-  when `dev` merges into `main` at milestone completion (see PROGRESS.md).
+  when `dev` merges into `main` at milestone completion.
 - RESEND_API_KEY not configured in Supabase project secrets → welcome email
   silently fails (non-fatal try/catch).
 - Supabase Auth project setting `mailer_allow_unverified_email_sign_ins` set to
-  `true` (changed from default `false`). This was required because
-  `admin.createUser({ email_confirm: true })` was not actually confirming emails
-  when `mailer_autoconfirm` was `false` (the default), preventing new employees
-  from signing in with their temp password. The fix also added an explicit
-  `admin.updateUserById(id, { email_confirm: true })` call in the
-  `create-employee` Edge Function as defense-in-depth.
-- Migration naming conflict: there are two `0010_*` files
-  (`0010_fix_employee_self_update_is_first_login.sql` and
-  `0010_fix_enforce_employee_update_service_role.sql`) — the second supersedes
-  the first. Both were applied via `supabase db query` (not through Supabase
-  MCP `apply_migration`), so the local migration history is out of sync with
-  the remote. Run `supabase migration repair` to reconcile.
+  `true` — required because `admin.createUser({ email_confirm: true })` wasn't
+  confirming emails when `mailer_autoconfirm` was `false`. Function also calls
+  `admin.updateUserById(id, { email_confirm: true })` as defense-in-depth.
+- Migration naming conflict: two `0010_*` files (first superseded by second).
+  Both applied via `supabase db query`, CLI history out of sync with remote.
+  Run `supabase migration repair` to reconcile.
+- 3 cron functions deployed but schedules not configured in Supabase Dashboard:
+  access-revocation (23:55 IST), exit-date-alert (09:15 IST),
+  future-joiner-activation (00:01 IST).
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,

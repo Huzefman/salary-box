@@ -39,6 +39,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'All Employees', href: '/employees', roles: ['owner', 'hr', 'system_admin'] },
       { label: 'Add Employee', href: '/employees/new', roles: ['owner'] },
       { label: 'Bulk Import', href: '/employees/bulk-import', roles: ['owner'] },
+      { label: 'Org Chart', href: '/org-chart', roles: ['owner', 'hr'] },
+      { label: 'Profile Edits', href: '/employees/profile-edits', roles: ['owner', 'hr'] },
     ],
   },
   {

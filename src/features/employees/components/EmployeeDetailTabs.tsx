@@ -12,6 +12,7 @@ import { EmployeeLifecycleTab } from './EmployeeLifecycleTab'
 import { EmployeeAttendanceTab } from './EmployeeAttendanceTab'
 import { EmployeeLeaveTab } from './EmployeeLeaveTab'
 import { EmployeeOnboardingTab } from './EmployeeOnboardingTab'
+import { EmployeeActivityTab } from './EmployeeActivityTab'
 
 type Props = { employeeId: string }
 
@@ -20,6 +21,7 @@ const ADMIN_TABS = [
   { value: 'documents', label: 'Documents' },
   { value: 'bank_details', label: 'Bank Details' },
   { value: 'lifecycle', label: 'Lifecycle' },
+  { value: 'activity', label: 'Activity' },
   { value: 'attendance', label: 'Attendance' },
   { value: 'leave', label: 'Leave' },
   { value: 'onboarding', label: 'Onboarding' },
@@ -100,6 +102,12 @@ export function EmployeeDetailTabs({ employeeId }: Props) {
       {canViewAll && (
         <TabsContent value="lifecycle">
           <EmployeeLifecycleTab employeeId={employeeId} />
+        </TabsContent>
+      )}
+
+      {canViewAll && (
+        <TabsContent value="activity">
+          <EmployeeActivityTab employeeId={employeeId} />
         </TabsContent>
       )}
 

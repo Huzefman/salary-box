@@ -1,9 +1,9 @@
 # Progress Log
 
 ## Current State
-Date: 2026-06-17
+Date: 2026-06-18
 Active branch: experiment-new-agent
-Milestone: M1 — Foundation (COMPLETE), M2 — Employee Module (BUILT)
+Milestone: M1 + M2 — COMPLETE (all P0/P1/P2 features built)
 Next milestone: M3 — Attendance Module
 
 ## Completed
@@ -295,6 +295,12 @@ Next milestone: M3 — Attendance Module
   `${SUPABASE_ACCESS_TOKEN}`) instead of the "claude.ai Supabase" OAuth
   connector — the OAuth connector kept authenticating against the wrong
   Supabase account (cross-Google-account mismatch) with no way to redirect it.
+
+- 2026-06-18: Completed M2 final features: Activity Timeline (audit_logs-based
+  tab), Org Chart (recursive tree from reporting_manager_id), Profile Edit
+  Requests (employee self-service → HR approval via review-profile-edit EF).
+  Cleaned up test employees EMP-0005–0008 (hard delete + auth removal).
+  M1 + M2 now 100% complete.
 
 ## Known Issues
 - `origin/main` (fitmantramarketing-sys/salary-box) was reverted to a

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useRole } from '@/hooks/useRole'
@@ -9,7 +9,14 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Loader2, Search, UserPlus } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Loader2, Search, UserPlus, Download } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 import type { Database } from '@/types/database.types'
 
@@ -32,6 +39,8 @@ export default function EmployeesPage() {
   const { role, isOwner } = useRole()
   const employee = useAuthStore((s) => s.employee)
   const [search, setSearch] = useState('')
+  const [deptFilter, setDeptFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees', 'list'],
@@ -43,7 +52,14 @@ export default function EmployeesPage() {
     return <Navigate to={`/employees/${employee.id}`} replace />
   }
 
+  const departments = useMemo(() => {
+    const names = new Set(employees.map((e) => e.department?.name).filter(Boolean) as string[])
+    return Array.from(names).sort()
+  }, [employees])
+
   const filtered = employees.filter((e) => {
+    if (deptFilter !== 'all' && e.department?.name !== deptFilter) return false
+    if (statusFilter !== 'all' && e.employment_status !== statusFilter) return false
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -79,14 +95,43 @@ export default function EmployeesPage() {
     return labels[status] ?? status
   }
 
+  function downloadCSV() {
+    const headers = ['Code', 'First Name', 'Last Name', 'Email', 'Phone', 'Department', 'Designation', 'Status', 'Role', 'Join Date']
+    const rows = filtered.map((e) => [
+      e.employee_code,
+      e.first_name,
+      e.last_name,
+      e.email,
+      e.phone ?? '',
+      e.department?.name ?? '',
+      e.designation?.name ?? '',
+      getStatusLabel(e.employment_status),
+      e.role,
+      e.join_date ?? '',
+    ])
+
+    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `employees_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Employees</h1>
         {isOwner && (
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={downloadCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
             <Link to="/employees/new">
-              <Button>
+              <Button size="sm">
                 <UserPlus className="mr-2 h-4 w-4" />
                 Add Employee
               </Button>
@@ -105,6 +150,30 @@ export default function EmployeesPage() {
             className="pl-9"
           />
         </div>
+        <Select value={deptFilter} onValueChange={setDeptFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Department" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Departments</SelectItem>
+            {departments.map((dept) => (
+              <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="on_probation">Probation</SelectItem>
+            <SelectItem value="resigned">Resigned</SelectItem>
+            <SelectItem value="terminated">Terminated</SelectItem>
+            <SelectItem value="future_joiner">Future Joiner</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>

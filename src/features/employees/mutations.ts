@@ -1,9 +1,39 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import { callEdgeFunction, callEdgeFunctionFormData } from '@/lib/edge'
 import type { CreateEmployeeResponse, UploadDocumentResponse, AddLifecycleEventResponse } from '@/types'
 import type { CreateEmployeeForm } from './schemas'
 import type { LifecycleEventForm } from './types'
 import type { Employee } from '@/types'
+
+export function useSubmitProfileEdit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { employee_id: string; requested_changes: Record<string, string> }) => {
+      const { error } = await supabase.from('profile_edit_requests').insert({
+        employee_id: body.employee_id,
+        requested_changes: body.requested_changes,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile-edit-requests'] })
+    },
+  })
+}
+
+export function useReviewProfileEdit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { request_id: string; action: 'approve' | 'reject'; reviewer_notes?: string }) =>
+      callEdgeFunction<{ request_id: string; action: 'approve' | 'reject'; reviewer_notes?: string }, { reviewed: boolean }>('review-profile-edit', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile-edit-requests'] })
+      qc.invalidateQueries({ queryKey: ['employees', 'list'] })
+      qc.invalidateQueries({ queryKey: ['employees', 'detail'] })
+    },
+  })
+}
 
 export function useCreateEmployee() {
   const qc = useQueryClient()
