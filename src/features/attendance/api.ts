@@ -33,3 +33,24 @@ export async function fetchTodayAttendance(employeeId: string): Promise<Attendan
   if (error) throw error
   return data
 }
+
+export async function fetchRegularizationHistory(employeeId: string) {
+  const { data, error } = await supabase
+    .from('attendance_regularization_requests')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .order('created_at', { ascending: false })
+    .limit(20)
+  if (error) throw error
+  return data ?? []
+}
+
+export async function fetchAppConfig(key: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('app_config')
+    .select('value')
+    .eq('key', key)
+    .maybeSingle()
+  if (error) throw error
+  return data?.value ?? null
+}

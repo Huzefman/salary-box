@@ -62,7 +62,15 @@ salary-box/
 │       │   ├── supabase.ts          ← service-role client factory
 │       │   ├── auth.ts              ← JWT verification helpers
 │       │   ├── response.ts          ← standard success/error response builders
-│       │   └── email.ts             ← Resend wrapper
+│       │   ├── email.ts             ← Resend wrapper
+│       │   ├── notify.ts            ← in-app notification creator
+│       │   ├── audit.ts             ← audit log helper for cron functions
+│       │   ├── shift.ts             ← shift resolution (BR-ATT-11)
+│       │   ├── working-days.ts      ← working day computation (BR-LVE-01)
+│       │   ├── geo.ts               ← haversine, geofence, drift check
+│       │   ├── ip.ts                ← IP whitelist check (BR-ATT-10)
+│       │   ├── holiday.ts           ← holiday/weekly-off check (BR-ATT-04)
+│       │   └── attendance.ts        ← computeTotalHours, overtime, isLate, status (BR-ATT-04/05/06/07)
 │       ├── check-in/
 │       │   └── index.ts
 │       ├── check-out/
@@ -90,6 +98,14 @@ salary-box/
 │   │   ├── auth/
 │   │   ├── employees/
 │   │   ├── attendance/
+│   │   │   ├── components/        ← CheckInOutCard, AttendanceCalendar, etc.
+│   │   │   ├── hooks.ts
+│   │   │   ├── mutations.ts
+│   │   │   ├── api.ts
+│   │   │   ├── schemas.ts
+│   │   │   ├── utils.ts
+│   │   │   ├── types.ts
+│   │   │   └── index.ts
 │   │   ├── leave/
 │   │   ├── reports/
 │   │   └── settings/
@@ -213,8 +229,14 @@ supabase db push
 # Serve Edge Functions locally
 supabase functions serve
 
-# Deploy a specific Edge Function
-supabase functions deploy <function-name>
+# Deploy a specific Edge Function (use --project-ref for remote, not --linked)
+supabase functions deploy <function-name> --use-api --project-ref <project-ref>
+
+# Run SQL directly on remote via management API
+curl -X POST https://api.supabase.com/v1/projects/<project-ref>/database/query \
+  -H "Authorization: Bearer \$SUPABASE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT 1;"}'
 
 # Run type check
 npm run typecheck
@@ -239,7 +261,7 @@ Build in this order. Each milestone must be complete before the next.
 |---|---|
 | M1 | Supabase project setup, all migrations, RLS policies, auth flow (login/set-password), RBAC + role detection, department/designation CRUD, employee CRUD (P0 fields), sidebar shell |
 | M2 | Full employee module: list, add/edit form, document vault, lifecycle events, bulk import, activity timeline, org chart (P2) |
-| M3 | Attendance module: check-in/out Edge Functions, WFH logging, team calendar, manual entry, regularization flow, shift management |
+| M3 | Attendance module: check-in/out Edge Functions, WFH logging, team calendar, manual entry, regularization flow, shift management — **Phase 1-3 done (10 Edge Functions deployed + employee self-service frontend), Phase 4-5 pending** |
 | M4 | Leave module: leave types config, holiday calendar + optional opt-in, leave application flow, comp-off flow, balance tracking |
 | M5 | Reports, all notifications wired (email + in-app), mobile responsiveness, UAT polish |
 

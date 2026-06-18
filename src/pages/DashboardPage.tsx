@@ -6,7 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Loader2, Users, Clock, Calendar, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react'
+import { Loader2, Users, Clock, Calendar, CheckCircle2, AlertTriangle, ArrowRight, Home } from 'lucide-react'
+import { useCheckIn, useCheckOut, useLogWFH } from '@/features/attendance/mutations'
+import { toast } from 'sonner'
 
 async function fetchDashboardCounts() {
   const [empRes, leaveRes, regRes] = await Promise.all([
@@ -160,37 +162,102 @@ function HRDashboard() {
 
 function EmployeeDashboardView() {
   const emp = useAuthStore((s) => s.employee)
-  const { data: dashboard, isLoading } = useQuery({
+  const { data: dashboard, isLoading, refetch } = useQuery({
     queryKey: ['dashboard', 'employee', emp?.id],
     queryFn: fetchEmployeeDashboard,
     enabled: !!emp,
   })
 
+  const checkIn = useCheckIn()
+  const checkOut = useCheckOut()
+  const logWFH = useLogWFH()
+
+  const handleCheckIn = async () => {
+    try {
+      const result = await checkIn.mutateAsync(undefined)
+      toast.success(result.is_late ? 'Checked in — late' : 'Checked in successfully')
+      refetch()
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      toast.error(err?.message ?? 'Check-in failed')
+    }
+  }
+
+  const handleCheckOut = async () => {
+    try {
+      const result = await checkOut.mutateAsync(undefined)
+      toast.success(`Checked out. Total: ${result.total_hours}h`)
+      refetch()
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      toast.error(err?.message ?? 'Check-out failed')
+    }
+  }
+
+  const handleLogWFH = async () => {
+    try {
+      await logWFH.mutateAsync()
+      toast.success('WFH logged for today')
+      refetch()
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      toast.error(err?.message ?? 'Failed to log WFH')
+    }
+  }
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+
+  const checkedIn = !!dashboard?.todayAttendance?.check_in_time
+  const checkedOut = !!dashboard?.todayAttendance?.check_out_time
+  const isWFH = dashboard?.todayAttendance?.is_wfh ?? false
 
   return (
     <div className="space-y-6">
       {/* Check-in status */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            {dashboard?.todayAttendance?.check_in_time
-              ? `Checked in at ${new Date(dashboard.todayAttendance.check_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
-              : 'Not checked in today'}
+          <CardTitle className="flex items-center justify-between">
+            <span>
+              {checkedIn
+                ? `Checked in at ${new Date(dashboard!.todayAttendance!.check_in_time!).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+                : 'Not checked in today'}
+            </span>
+            {checkedIn && !checkedOut && (
+              <span className="text-sm font-normal text-muted-foreground">In progress</span>
+            )}
+            {checkedOut && (
+              <span className="text-sm font-normal text-muted-foreground">
+                Checked out at {new Date(dashboard!.todayAttendance!.check_out_time!).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex gap-3">
-          <Button size="lg" disabled={!!dashboard?.todayAttendance?.check_in_time}>
-            <Clock className="mr-2 h-4 w-4" />
+        <CardContent className="flex flex-wrap gap-3">
+          <Button
+            size="lg"
+            disabled={checkedIn || checkIn.isPending || isWFH}
+            onClick={handleCheckIn}
+          >
+            {checkIn.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />}
             Check In
           </Button>
           <Button
             size="lg"
             variant="outline"
-            disabled={!dashboard?.todayAttendance?.check_in_time || !!dashboard?.todayAttendance?.check_out_time}
+            disabled={!checkedIn || checkedOut || checkOut.isPending}
+            onClick={handleCheckOut}
           >
-            <CheckCircle2 className="mr-2 h-4 w-4" />
+            {checkOut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
             Check Out
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            disabled={checkedIn || isWFH || logWFH.isPending}
+            onClick={handleLogWFH}
+          >
+            {logWFH.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Home className="mr-2 h-4 w-4" />}
+            {isWFH ? 'WFH Logged' : 'Log WFH'}
           </Button>
         </CardContent>
       </Card>

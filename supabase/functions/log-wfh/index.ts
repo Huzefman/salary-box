@@ -1,5 +1,6 @@
 import { getActor, assertRole } from '../_shared/auth.ts'
 import { ok, cors, handleError } from '../_shared/response.ts'
+import { getServiceClient } from '../_shared/supabase.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
@@ -8,14 +9,42 @@ Deno.serve(async (req: Request) => {
     const actor = await getActor(req)
     assertRole(actor, ['owner', 'hr', 'employee'])
 
-    // TODO: implement per docs/EDGE_FUNCTIONS.md "log-wfh"
-    // 1. Upsert attendance_records for (employee_id, today), set is_wfh = true
-    // 2. Do not overwrite check_in_time or any other field
-    // 3. If status is already 'on_leave' -> CONFLICT
+    const today = new Date().toISOString().slice(0, 10)
+    const supabase = getServiceClient()
+
+    const { data: existing } = await supabase
+      .from('attendance_records')
+      .select('id, status')
+      .eq('employee_id', actor.actorId)
+      .eq('date', today)
+      .maybeSingle()
+
+    if (existing?.status === 'on_leave') {
+      throw {
+        code: 'CONFLICT',
+        message: 'Cannot log WFH on an approved leave day.',
+        status: 409,
+      }
+    }
+
+    const { data: record, error } = await supabase
+      .from('attendance_records')
+      .upsert(
+        {
+          employee_id: actor.actorId,
+          date: today,
+          is_wfh: true,
+        },
+        { onConflict: 'employee_id, date', ignoreDuplicates: false }
+      )
+      .select('id, is_wfh')
+      .single()
+
+    if (error) throw error
 
     return ok({
-      attendance_record_id: null,
-      is_wfh: true,
+      attendance_record_id: record.id,
+      is_wfh: record.is_wfh,
     })
   } catch (e) {
     return handleError(e)

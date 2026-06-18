@@ -1,5 +1,7 @@
 import { getActor, assertRole } from '../_shared/auth.ts'
 import { ok, cors, handleError } from '../_shared/response.ts'
+import { getServiceClient } from '../_shared/supabase.ts'
+import { createNotification } from '../_shared/notify.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
@@ -7,22 +9,99 @@ Deno.serve(async (req: Request) => {
   try {
     const actor = await getActor(req)
     assertRole(actor, ['owner', 'hr', 'employee'])
-    await req.json().catch(() => ({}))
+    const body = await req.json()
 
-    // TODO: implement per docs/EDGE_FUNCTIONS.md "submit-regularization"
-    // 1. Fetch attendance_records row; verify it belongs to actor (or owner/hr on behalf of)
-    // 2. Validate date is within app_config.regularization_window_days (BR-ATT-08) -> VALIDATION_ERROR
-    // 3. Check no pending regularization exists for this record -> CONFLICT
-    // 4. Insert attendance_regularization_requests row
-    // 5. Notify HR/Owner
+    const { attendance_record_id, requested_status, requested_check_in, requested_check_out, reason } = body
 
-    return ok(
-      {
-        request_id: null,
+    if (!attendance_record_id || !requested_status || !reason) {
+      throw { code: 'VALIDATION_ERROR', message: 'attendance_record_id, requested_status, and reason are required.', status: 400 }
+    }
+
+    const supabase = getServiceClient()
+
+    const { data: record } = await supabase
+      .from('attendance_records')
+      .select('id, employee_id, date')
+      .eq('id', attendance_record_id)
+      .single()
+
+    if (!record) {
+      throw { code: 'NOT_FOUND', message: 'Attendance record not found.', status: 404 }
+    }
+
+    if (actor.actorRole === 'employee' && record.employee_id !== actor.actorId) {
+      throw { code: 'FORBIDDEN', message: 'You can only request regularization for your own records.', status: 403 }
+    }
+
+    const { data: config } = await supabase
+      .from('app_config')
+      .select('value')
+      .eq('key', 'regularization_window_days')
+      .maybeSingle()
+
+    const windowDays = parseInt(config?.value || '7', 10)
+    const recordDate = new Date(record.date + 'T00:00:00+05:30')
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - windowDays)
+    cutoff.setHours(0, 0, 0, 0)
+
+    if (recordDate < cutoff) {
+      throw {
+        code: 'VALIDATION_ERROR',
+        message: `Regularization window is ${windowDays} days. This date is outside the allowed window.`,
+        status: 400,
+      }
+    }
+
+    // Check no pending request exists (DB unique index enforces it, but return clean error)
+    const { data: pending } = await supabase
+      .from('attendance_regularization_requests')
+      .select('id')
+      .eq('attendance_record_id', attendance_record_id)
+      .eq('status', 'pending')
+      .maybeSingle()
+
+    if (pending) {
+      throw { code: 'CONFLICT', message: 'A pending regularization request already exists for this record.', status: 409 }
+    }
+
+    const { data: request, error } = await supabase
+      .from('attendance_regularization_requests')
+      .insert({
+        employee_id: record.employee_id,
+        attendance_record_id: record.id,
+        requested_status,
+        requested_check_in: requested_check_in || null,
+        requested_check_out: requested_check_out || null,
+        reason,
         status: 'pending',
-      },
-      201
-    )
+      })
+      .select('id, status')
+      .single()
+
+    if (error) throw error
+
+    // Notify all Owner and HR employees
+    const { data: admins } = await supabase
+      .from('employees')
+      .select('id')
+      .in('role', ['owner', 'hr'])
+      .eq('is_active', true)
+
+    if (admins) {
+      for (const admin of admins) {
+        await createNotification({
+          recipientId: admin.id,
+          title: 'Regularization Request',
+          body: `Employee has requested regularization for ${record.date}. Reason: ${reason}`,
+          type: 'regularization_pending',
+          referenceId: request.id,
+          referenceTable: 'attendance_regularization_requests',
+        })
+      }
+    }
+
+    return ok({ request_id: request.id, status: request.status }, 201)
   } catch (e) {
     return handleError(e)
   }

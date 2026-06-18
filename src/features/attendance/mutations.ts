@@ -6,7 +6,7 @@ import type { SubmitRegularizationForm } from './schemas'
 export function useCheckIn() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (coords?: { latitude: number; longitude: number }) =>
+    mutationFn: (coords?: { latitude?: number; longitude?: number }) =>
       callEdgeFunction<object, CheckInResponse>('check-in', coords ?? {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['attendance'] }),
   })
@@ -15,7 +15,7 @@ export function useCheckIn() {
 export function useCheckOut() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (coords?: { latitude: number; longitude: number }) =>
+    mutationFn: (coords?: { latitude?: number; longitude?: number }) =>
       callEdgeFunction<object, CheckOutResponse>('check-out', coords ?? {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['attendance'] }),
   })

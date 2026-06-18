@@ -8,6 +8,9 @@ export type ShiftInfo = {
   total_hours: number
   weekly_off_days: number[]
   late_mark_threshold: number
+  grace_period_minutes: number
+  break_minutes: number
+  is_night_shift: boolean
 }
 
 export async function resolveShift(employeeId: string, date: string): Promise<ShiftInfo> {

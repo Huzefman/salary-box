@@ -23,9 +23,10 @@ inventing an answer.
 ## Current status — UPDATE THIS EVERY SESSION
 Last updated: 2026-06-18
 Active branch: experiment-new-agent
-Current session: Completed all remaining M2 features — Activity Timeline, Org
-Chart, Profile Edit Requests. Also deleted 4 test employees (EMP-0005–0008)
-with full cleanup (auth accounts, audit logs, DB rows). M1 + M2 100% complete.
+Current session: M3 Phase 1 + Phase 2 + Phase 3 complete — all 10 Attendance
+Edge Functions implemented and deployed, plus employee self-service frontend
+(CheckInOutCard, AttendanceCalendar, AttendanceSummaryCards, Dashboard wired,
+RegularizationPage). M1 + M2 still 100% complete.
 
 ### M2 — Complete Feature Set
 - **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header. Exports
@@ -50,7 +51,7 @@ with full cleanup (auth accounts, audit logs, DB rows). M1 + M2 100% complete.
   `employment_status = 'future_joiner' AND join_date = today`, sets to active,
   notifies Owner/HR.
 
-### M2 — Remaining Features (built this session)
+### M2 — Remaining Features (built in previous session)
 
 **Activity Timeline** — New "Activity" tab on employee detail page (Owner/HR).
 Queries `audit_logs` for the employee and renders a vertical timeline with
@@ -75,33 +76,80 @@ badge. All nodes link to employee detail. (`src/pages/OrgChartPage.tsx`)
   `src/features/employees/mutations.ts` — `useSubmitProfileEdit`,
   `useReviewProfileEdit`)
 
-### Cleanup Performed
+### Cleanup Performed (previous session)
 - **Hard deleted EMP-0005–0008** (Abc Def, xyz a, Xyz a, coffee@gmail.com):
   removed auth accounts via GoTrue Admin API (`DELETE /auth/v1/admin/users/{id}`),
   deleted 26 audit_log rows, then deleted employee rows. Removed `deactivate-
   employee` and `reactivate-employee` Edge Functions (undeployed + files deleted).
   4 legitimate employees remain (EMP-0001–0004).
 
-### DB schema changes
+### M3 Phase 1 — Attendance Backend (built this session)
+
+**4 shared utilities (`supabase/functions/_shared/`):**
+- `geo.ts` — `haversineDistance`, `checkGeofence` (GPS vs geofence_config),
+  `checkDrift` (>50km between check-in/out)
+- `ip.ts` — `checkIpWhitelist` (client IP vs `ip_whitelist` CIDR ranges)
+- `holiday.ts` — `isHoliday` (checks `holidays` + `employee_optional_holidays`),
+  `isWeeklyOff` (from shift's `weekly_off_days`)
+- `attendance.ts` — `computeTotalHours` (BR-ATT-05), `computeOvertime` (BR-ATT-07),
+  `computeIsLate` (BR-ATT-06), `computeStatus` (BR-ATT-04 all 9 steps)
+
+**6 Edge Functions deployed (Phase 1):**
+| Function | Type | Key logic |
+|---|---|---|
+| `check-in` | Client (owner/hr/employee) | IP whitelist → GPS geofence → shift resolution → upsert server-timestamped record → late mark |
+| `check-out` | Client (owner/hr/employee) | Find today's record → verify not already done → compute hours/overtime → GPS drift check |
+| `log-wfh` | Client (owner/hr/employee) | Upsert `is_wfh=true` for today, reject if `on_leave`, don't touch `check_in_time` |
+| `auto-checkout` | Cron (23:59 daily) | Close incomplete records → set `check_out_time` from `app_config.auto_checkout_time` → notify each employee |
+| `compute-attendance-status` | Cron (00:05 daily) | Recompute yesterday's status/total_hours/overtime/is_late per BR-ATT-04 for all records |
+| `manual-attendance` | Client (owner/hr) | Upsert past record with provided check_in/out, compute all fields server-side, `is_manually_entered=true` |
+
+**4 Edge Functions deployed (Phase 2):**
+| Function | Type | Key logic |
+|---|---|---|
+| `submit-regularization` | Client (employee/owner/hr) | Fetch attendance record → validate within regularization_window_days → check no pending request → insert request → notify admins |
+| `review-regularization` | Client (owner/hr) | Validate request status → if approve: update attendance record with requested values, recompute hours/is_late → notify employee |
+| `late-mark-deduction` | Cron (monthly 1st) | Count is_late=true per employee in previous month → if count >= late_mark_threshold → deduct 0.5 from CL/EL/LWP balance |
+| `incomplete-attendance-reminder` | Cron (09:00 daily) | Query yesterday's incomplete records → send in-app notification to each employee |
+
+**DB changes:**
+- Verified `is_default` column on `shifts` (already existed)
+- Seeded "General Shift" as default (09:00–18:00, Sun off, 15 min grace, 3 late-mark threshold)
+- Created `idx_shifts_default` unique partial index via Management API
+
+### M3 Phase 3 — Employee Self-Service Frontend (built this session)
+
+**3 new components (`src/features/attendance/components/`):**
+| Component | What it does |
+|---|---|
+| `CheckInOutCard` | Check-in/check-out/WFH buttons with loading states, today's status display, calls Edge Functions via mutations |
+| `AttendanceSummaryCards` | 6 stat cards per month: Present, Absent, WFH, Late, On Leave, Half Day |
+| `AttendanceCalendar` | Month selector, colour-coded day grid, legend + click-to-view day detail dialog (times, hours, overtime, flags) |
+
+**Updated pages:**
+- `AttendancePage.tsx` — Composes all 3 components with month navigation, `/attendance` route
+- `DashboardPage.tsx` — Employee view: wired Check In/Check Out/WFH buttons to real Edge Function calls with toast feedback
+- `RegularizationPage.tsx` — Full page with new request dialog (status, check-in/out, reason) + request history list with status badges
+
+**Updated feature files:**
+- `api.ts` — Added `fetchRegularizationHistory`, `fetchAppConfig`
+- `hooks.ts` — Added `useMyAttendanceCurrentMonth`, `useRegularizationHistory`, `useAppConfig`
+- `mutations.ts` — Fixed coords type to `{ latitude?: number; longitude?: number }` for empty-object calls
+
+### DB schema changes (cumulative)
 - `profile_edit_requests` table added (migration `0012_create_profile_edit_requests`)
+- `shifts.is_default` (already existed from scaffold)
 - Types regenerated (`src/types/database.types.ts`)
 
-### Edge Functions (deployed)
-- `add-lifecycle-event` — Role-gated lifecycle events (promotion, transfer,
-  salary revision, resignation, termination, rehire). Termination handles
-  orphaned reports + immediate auth revocation.
-- `upload-document` — MIME/size validation, SHA-256 hash dupe detection,
-  Owner override with audit log, upload to Storage.
-- `generate-presigned-url` — 15-min expiry, role-based access check.
-- `bulk-import-employees` — CSV parsing, row validation, batch insert.
-- `update-employee` — Role-gated field permissions: Owner all, HR all except
-  role/salary/auth_id, Employee own non-sensitive only.
-- `create-employee` — Full employee creation with auth account, welcome email,
-  onboarding progress rows, leave balance rows.
-- `access-revocation` — Daily cron: deactivates employees on exit_date.
-- `exit-date-alert` — Daily cron: notifies admins of upcoming exits.
-- `future-joiner-activation` — Daily cron: activates future_joiners on join_date.
-- `review-profile-edit` — Owner/HR approve/reject profile edit requests.
+### Edge Functions Deployed (cumulative)
+- M1/M2: `add-lifecycle-event`, `upload-document`, `generate-presigned-url`,
+  `bulk-import-employees`, `update-employee`, `create-employee`,
+  `access-revocation`, `exit-date-alert`, `future-joiner-activation`,
+  `review-profile-edit`
+- **M3:** `check-in`, `check-out`, `log-wfh`, `auto-checkout`,
+  `compute-attendance-status`, `manual-attendance`,
+  `submit-regularization`, `review-regularization`,
+  `late-mark-deduction`, `incomplete-attendance-reminder`
 
 ### Known issues
 - `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
@@ -120,9 +168,15 @@ badge. All nodes link to employee detail. (`src/pages/OrgChartPage.tsx`)
 - Migration naming conflict: two `0010_*` files (first superseded by second).
   Both applied via `supabase db query`, CLI history out of sync with remote.
   Run `supabase migration repair` to reconcile.
-- 3 cron functions deployed but schedules not configured in Supabase Dashboard:
+- 7 cron functions deployed but schedules not configured in Supabase Dashboard:
   access-revocation (23:55 IST), exit-date-alert (09:15 IST),
-  future-joiner-activation (00:01 IST).
+  future-joiner-activation (00:01 IST), auto-checkout (23:59 IST),
+  compute-attendance-status (00:05 IST), late-mark-deduction (monthly 1st 00:10 IST),
+  incomplete-attendance-reminder (09:00 IST).
+- Geolocation not wired in frontend — CheckInOutCard and Dashboard check-in/out
+  buttons call Edge Functions with empty coords. Needs
+  `navigator.geolocation.getCurrentPosition()` integration to pass lat/lng for
+  geofence validation.
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,
@@ -166,7 +220,9 @@ supabase/
   migrations/           ← numbered SQL migrations
   seed.sql
   functions/
-    _shared/            ← supabase.ts, auth.ts, response.ts, email.ts
+    _shared/            ← supabase.ts, auth.ts, response.ts, email.ts,
+                           notify.ts, audit.ts, shift.ts, working-days.ts,
+                           geo.ts, ip.ts, holiday.ts, attendance.ts
     <function-name>/index.ts
 ```
 
