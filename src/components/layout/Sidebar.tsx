@@ -11,6 +11,7 @@ import {
   User,
   ChevronDown,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
@@ -93,12 +94,12 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-function EmployeeNav() {
+function EmployeeNav({ onItemClick }: { onItemClick?: () => void }) {
   return (
     <>
-      <NavItem icon={LayoutDashboard} href="/dashboard" label="Dashboard" />
-      <NavItem icon={User} href="/employees/me" label="My Profile" />
-      <NavItem icon={Clock} href="/attendance" label="My Attendance" />
+      <NavItem icon={LayoutDashboard} href="/dashboard" label="Dashboard" onClick={onItemClick} />
+      <NavItem icon={User} href="/employees/me" label="My Profile" onClick={onItemClick} />
+      <NavItem icon={Clock} href="/attendance" label="My Attendance" onClick={onItemClick} />
       <NavGroupItem
         icon={Calendar}
         label="My Leave"
@@ -108,16 +109,18 @@ function EmployeeNav() {
           { label: 'Comp-Off', href: '/leave/comp-off/request' },
           { label: 'Holiday Calendar', href: '/leave/holidays' },
         ]}
+        onChildClick={onItemClick}
       />
-      <NavItem icon={BarChart3} href="/reports/attendance" label="My Reports" />
+      <NavItem icon={BarChart3} href="/reports/attendance" label="My Reports" onClick={onItemClick} />
     </>
   )
 }
 
-function NavItem({ icon: Icon, href, label }: { icon: React.ElementType; href: string; label: string }) {
+function NavItem({ icon: Icon, href, label, onClick }: { icon: React.ElementType; href: string; label: string; onClick?: () => void }) {
   return (
     <NavLink
       to={href}
+      onClick={onClick}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
@@ -138,11 +141,13 @@ function NavGroupItem({
   label,
   children,
   defaultOpen,
+  onChildClick,
 }: {
   icon: React.ElementType
   label: string
   children: { label: string; href: string }[]
   defaultOpen?: boolean
+  onChildClick?: () => void
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false)
 
@@ -162,6 +167,7 @@ function NavGroupItem({
             <NavLink
               key={child.href}
               to={child.href}
+              onClick={onChildClick}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors',
@@ -180,59 +186,37 @@ function NavGroupItem({
   )
 }
 
-export function Sidebar() {
+type Props = { open: boolean; onClose: () => void }
+
+export function Sidebar({ open, onClose }: Props) {
   const { role } = useRole()
 
-  if (role === 'employee') {
-    return (
-      <aside className="flex w-56 flex-col border-r bg-background">
-        <Link to="/dashboard" className="flex h-14 items-center gap-2 border-b px-4">
-          <Building2 className="h-5 w-5 text-primary" />
-          <span className="font-semibold">HR Tool</span>
-        </Link>
-        <nav className="flex-1 space-y-1 p-3">
-          <EmployeeNav />
-        </nav>
-      </aside>
-    )
-  }
+  const navContent = role === 'employee' ? (
+    <nav className="flex-1 space-y-1 p-3">
+      <EmployeeNav onItemClick={onClose} />
+    </nav>
+  ) : (
+    <div className="flex-1 overflow-y-auto p-3">
+      <nav className="space-y-1">
+        {(() => {
+          const visibleGroups = NAV_GROUPS.filter(
+            (group) => !group.roles || (role && group.roles.includes(role))
+          ).map((group) => ({
+            ...group,
+            children: group.children?.filter(
+              (child) => !child.roles || (role && child.roles.includes(role))
+            ),
+          }))
 
-  const visibleGroups = NAV_GROUPS.filter(
-    (group) => !group.roles || (role && group.roles.includes(role))
-  ).map((group) => ({
-    ...group,
-    children: group.children?.filter(
-      (child) => !child.roles || (role && child.roles.includes(role))
-    ),
-  }))
-
-  return (
-    <aside className="flex w-56 flex-col border-r bg-background">
-      <Link to="/dashboard" className="flex h-14 items-center gap-2 border-b px-4">
-        <Building2 className="h-5 w-5 text-primary" />
-        <span className="font-semibold">HR Tool</span>
-      </Link>
-      <div className="flex-1 overflow-y-auto p-3">
-        <nav className="space-y-1">
-          {visibleGroups.map((group) => {
+          return visibleGroups.map((group) => {
             if (!group.children || group.children.length === 0) {
               return (
-                <NavItem
-                  key={group.href!}
-                  icon={group.icon}
-                  href={group.href!}
-                  label={group.label}
-                />
+                <NavItem key={group.href!} icon={group.icon} href={group.href!} label={group.label} onClick={onClose} />
               )
             }
             if (group.children.length === 1) {
               return (
-                <NavItem
-                  key={group.children[0].href}
-                  icon={group.icon}
-                  href={group.children[0].href}
-                  label={group.children[0].label}
-                />
+                <NavItem key={group.children[0].href} icon={group.icon} href={group.children[0].href} label={group.children[0].label} onClick={onClose} />
               )
             }
             return (
@@ -242,11 +226,57 @@ export function Sidebar() {
                 label={group.label}
                 children={group.children.map((c) => ({ label: c.label, href: c.href }))}
                 defaultOpen={true}
+                onChildClick={onClose}
               />
             )
-          })}
-        </nav>
-      </div>
-    </aside>
+          })
+        })()}
+      </nav>
+    </div>
+  )
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-background transition-transform duration-200 md:static md:z-auto md:w-56 md:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {/* Mobile header */}
+        <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
+          <Link to="/dashboard" className="flex items-center gap-2" onClick={onClose}>
+            <Building2 className="h-5 w-5 text-primary" />
+            <span className="font-semibold">HR Tool</span>
+          </Link>
+          <button onClick={onClose} className="rounded-md p-1.5 hover:bg-accent">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Desktop: logo + nav */}
+        <div className="hidden min-h-0 flex-1 flex-col md:flex">
+          <Link to="/dashboard" className="flex h-14 items-center gap-2 border-b px-4 shrink-0" onClick={onClose}>
+            <Building2 className="h-5 w-5 text-primary" />
+            <span className="font-semibold">HR Tool</span>
+          </Link>
+          {navContent}
+        </div>
+
+        {/* Mobile: nav only (header already rendered above) */}
+        <div className="flex min-h-0 flex-1 flex-col md:hidden">
+          {navContent}
+        </div>
+      </aside>
+    </>
   )
 }

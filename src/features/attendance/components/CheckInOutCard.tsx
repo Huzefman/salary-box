@@ -78,7 +78,7 @@ export function CheckInOutCard() {
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-wrap gap-3">
+      <CardContent className="flex flex-col sm:flex-row flex-wrap gap-3">
         <Button
           size="lg"
           disabled={checkedIn || checkIn.isPending || isWFH}

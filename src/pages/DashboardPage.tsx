@@ -232,7 +232,7 @@ function EmployeeDashboardView() {
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
+        <CardContent className="flex flex-col sm:flex-row flex-wrap gap-3">
           <Button
             size="lg"
             disabled={checkedIn || checkIn.isPending || isWFH}
@@ -263,7 +263,7 @@ function EmployeeDashboardView() {
       </Card>
 
       {/* Leave Balances */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {dashboard?.leaveBalances?.map((lb) => (
           <Card key={lb.id}>
             <CardHeader className="pb-2">
@@ -313,7 +313,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <h1 className="text-xl sm:text-2xl font-semibold">Dashboard</h1>
 
       {isOwner && <OwnerDashboard />}
       {isHR && <HRDashboard />}
