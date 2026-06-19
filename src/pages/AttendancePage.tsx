@@ -22,16 +22,22 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">My Attendance</h1>
-      <CheckInOutCard />
-      <AttendanceSummaryCards records={records} />
-      <AttendanceCalendar
-        records={records}
-        year={year}
-        month={month}
-        onPrevMonth={prevMonth}
-        onNextMonth={nextMonth}
-      />
+      <h1 className="text-xl sm:text-2xl font-semibold">My Attendance</h1>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <AttendanceCalendar
+            records={records}
+            year={year}
+            month={month}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+          />
+        </div>
+        <div className="space-y-6">
+          <CheckInOutCard />
+          <AttendanceSummaryCards records={records} />
+        </div>
+      </div>
     </div>
   )
 }

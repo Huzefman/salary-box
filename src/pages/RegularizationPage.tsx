@@ -67,8 +67,8 @@ export default function RegularizationPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Attendance Regularization</h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-semibold">Attendance Regularization</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" />New Request</Button>
@@ -139,7 +139,7 @@ export default function RegularizationPage() {
             ) : (
               <div className="space-y-3">
                 {requests.map((req) => (
-                  <div key={req.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
+                  <div key={req.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border p-3 text-sm">
                     <div className="space-y-1">
                       <p className="font-medium">{req.reason}</p>
                       <p className="text-xs text-muted-foreground">

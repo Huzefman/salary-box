@@ -57,8 +57,8 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between text-base">
-            <span>{monthName} {year}</span>
+          <CardTitle className="flex items-center justify-between gap-2 text-sm sm:text-base">
+            <span className="truncate">{monthName} {year}</span>
             <div className="flex gap-1">
               <Button variant="ghost" size="icon" onClick={onPrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
