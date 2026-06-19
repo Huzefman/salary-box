@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, Users, Clock, Calendar, CheckCircle2, AlertTriangle, ArrowRight, Home } from 'lucide-react'
 import { useCheckIn, useCheckOut, useLogWFH } from '@/features/attendance/mutations'
+import { getCurrentPosition } from '@/features/attendance/utils'
 import { toast } from 'sonner'
 
 async function fetchDashboardCounts() {
@@ -174,7 +175,8 @@ function EmployeeDashboardView() {
 
   const handleCheckIn = async () => {
     try {
-      const result = await checkIn.mutateAsync(undefined)
+      const coords = await getCurrentPosition()
+      const result = await checkIn.mutateAsync(coords ?? {})
       toast.success(result.is_late ? 'Checked in — late' : 'Checked in successfully')
       refetch()
     } catch (e: unknown) {
@@ -185,7 +187,8 @@ function EmployeeDashboardView() {
 
   const handleCheckOut = async () => {
     try {
-      const result = await checkOut.mutateAsync(undefined)
+      const coords = await getCurrentPosition()
+      const result = await checkOut.mutateAsync(coords ?? {})
       toast.success(`Checked out. Total: ${result.total_hours}h`)
       refetch()
     } catch (e: unknown) {

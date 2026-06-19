@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, Clock, LogOut, Home } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatHours } from '../utils'
+import { formatHours, getCurrentPosition } from '../utils'
 
 export function CheckInOutCard() {
   const { data: today, isLoading, refetch } = useTodayAttendance()
@@ -14,7 +14,8 @@ export function CheckInOutCard() {
 
   const handleCheckIn = async () => {
     try {
-      const result = await checkIn.mutateAsync({})
+      const coords = await getCurrentPosition()
+      const result = await checkIn.mutateAsync(coords ?? {})
       toast.success(result.is_late ? 'Checked in — late' : 'Checked in successfully')
       refetch()
     } catch (e: unknown) {
@@ -25,7 +26,8 @@ export function CheckInOutCard() {
 
   const handleCheckOut = async () => {
     try {
-      const result = await checkOut.mutateAsync({})
+      const coords = await getCurrentPosition()
+      const result = await checkOut.mutateAsync(coords ?? {})
       toast.success(`Checked out. Total: ${formatHours(result.total_hours)}`)
       refetch()
     } catch (e: unknown) {

@@ -1,0 +1,208 @@
+import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useLeaveTypes, useMyLeaveBalances } from '../hooks'
+import { useSubmitLeave } from '../mutations'
+import { submitLeaveSchema, type SubmitLeaveForm } from '../schemas'
+import { getAvailableBalance } from '../utils'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
+
+export function ApplyLeaveForm() {
+  const navigate = useNavigate()
+  const { data: leaveTypes, isLoading: typesLoading } = useLeaveTypes()
+  const { data: balances, isLoading: balancesLoading } = useMyLeaveBalances(
+    new Date().getFullYear()
+  )
+  const submitLeave = useSubmitLeave()
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<SubmitLeaveForm>({
+    resolver: zodResolver(submitLeaveSchema),
+    defaultValues: {
+      is_half_day: false,
+      half_day_period: null,
+      attachment_path: null,
+    },
+  })
+
+  const leaveTypeId = watch('leave_type_id')
+  const isHalfDay = watch('is_half_day')
+
+  const selectedBalance = useMemo(() => {
+    if (!balances || !leaveTypeId) return null
+    return balances.find((b) => b.leave_type_id === leaveTypeId) ?? null
+  }, [balances, leaveTypeId])
+
+  const availableBalance = selectedBalance
+    ? getAvailableBalance(selectedBalance)
+    : 0
+
+  const insufficientBalance =
+    selectedBalance && availableBalance <= 0 && !selectedBalance.leave_type.allow_negative_balance
+
+  const onSubmit = async (data: SubmitLeaveForm) => {
+    try {
+      const result = await submitLeave.mutateAsync(data)
+      toast.success(
+        `Leave submitted (${result.working_days_count} working day${result.working_days_count !== 1 ? 's' : ''})`
+      )
+      navigate('/leave')
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      toast.error(err?.message ?? 'Failed to submit leave')
+    }
+  }
+
+  if (typesLoading || balancesLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Apply for Leave</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Apply for Leave</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="leave_type_id">Leave Type</Label>
+            <Select
+              onValueChange={(v) => setValue('leave_type_id', v, { shouldValidate: true })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select leave type" />
+              </SelectTrigger>
+              <SelectContent>
+                {leaveTypes?.map((lt) => {
+                  const bal = balances?.find((b) => b.leave_type_id === lt.id)
+                  const avail = bal ? getAvailableBalance(bal) : 0
+                  return (
+                    <SelectItem key={lt.id} value={lt.id}>
+                      {lt.name} ({avail} available)
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+            {errors.leave_type_id && (
+              <p className="text-sm text-destructive">{errors.leave_type_id.message}</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="from_date">From Date</Label>
+              <Input id="from_date" type="date" {...register('from_date')} />
+              {errors.from_date && (
+                <p className="text-sm text-destructive">{errors.from_date.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="to_date">To Date</Label>
+              <Input id="to_date" type="date" {...register('to_date')} />
+              {errors.to_date && (
+                <p className="text-sm text-destructive">{errors.to_date.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="is_half_day"
+                checked={isHalfDay}
+                onCheckedChange={(v) => setValue('is_half_day', v)}
+              />
+              <Label htmlFor="is_half_day">Half Day</Label>
+            </div>
+            {isHalfDay && (
+              <Select
+                onValueChange={(v) =>
+                  setValue('half_day_period', v as 'morning' | 'afternoon', { shouldValidate: true })
+                }
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="morning">Morning</SelectItem>
+                  <SelectItem value="afternoon">Afternoon</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reason">Reason</Label>
+            <Textarea
+              id="reason"
+              rows={4}
+              placeholder="Provide a reason for leave (min 5 characters)"
+              {...register('reason')}
+            />
+            {errors.reason && (
+              <p className="text-sm text-destructive">{errors.reason.message}</p>
+            )}
+          </div>
+
+          {selectedBalance && (
+            <div
+              className={`rounded border p-3 text-sm ${
+                insufficientBalance
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : availableBalance <= 0
+                    ? 'border-yellow-200 bg-yellow-50 text-yellow-700'
+                    : 'border-green-200 bg-green-50 text-green-700'
+              }`}
+            >
+              <span className="font-medium">{selectedBalance.leave_type.name}</span>:{' '}
+              {availableBalance} available
+              {insufficientBalance &&
+                ' — insufficient balance (submission still allowed for this leave type)'}
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={submitLeave.isPending || !!insufficientBalance}
+          >
+            {submitLeave.isPending ? 'Submitting...' : 'Submit Leave'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}

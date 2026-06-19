@@ -1,16 +1,52 @@
 import { ok, cors, handleError } from '../_shared/response.ts'
+import { getServiceClient } from '../_shared/supabase.ts'
+import { logAudit } from '../_shared/audit.ts'
 
-// Cron: daily at 00:20 IST
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
 
   try {
-    // TODO: implement per docs/EDGE_FUNCTIONS.md "carry-forward-lapse" (BR-LVE-11)
-    // 1. Query leave_balances where carry_forward_expiry = today
-    // 2. For each: reduce opening_balance -= carry_forward_amount, set carry_forward_amount = 0
-    // 3. Log to audit_logs with actor_system_function = 'carry_forward_lapse'
+    const supabase = getServiceClient()
+    const today = new Date().toISOString().split('T')[0]
 
-    return ok({ processed: 0 })
+    const { data: balances } = await supabase
+      .from('leave_balances')
+      .select('*')
+      .eq('carry_forward_expiry', today)
+      .gt('carry_forward_amount', 0)
+
+    if (!balances) return ok({ processed: 0 })
+
+    let processed = 0
+
+    for (const bal of balances) {
+      await supabase
+        .from('leave_balances')
+        .update({
+          opening_balance: Math.max(0, bal.opening_balance - bal.carry_forward_amount),
+          carry_forward_amount: 0,
+        })
+        .eq('id', bal.id)
+
+      await logAudit({
+        tableName: 'leave_balances',
+        recordId: bal.id,
+        action: 'UPDATE',
+        actorSystemFunction: 'carry_forward_lapse',
+        oldData: {
+          opening_balance: bal.opening_balance,
+          carry_forward_amount: bal.carry_forward_amount,
+        },
+        newData: {
+          opening_balance: Math.max(0, bal.opening_balance - bal.carry_forward_amount),
+          carry_forward_amount: 0,
+        },
+      })
+
+      processed++
+    }
+
+    return ok({ processed })
   } catch (e) {
     return handleError(e)
   }

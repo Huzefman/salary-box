@@ -12,7 +12,6 @@ export async function countWorkingDays(
     .select('id, date, is_optional')
     .gte('date', fromDate)
     .lte('date', toDate)
-    .eq('is_active', true)
 
   const { data: optIns } = await supabase
     .from('employee_optional_holidays')

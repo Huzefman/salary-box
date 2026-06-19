@@ -100,6 +100,7 @@ function EmployeeNav({ onItemClick }: { onItemClick?: () => void }) {
       <NavItem icon={LayoutDashboard} href="/dashboard" label="Dashboard" onClick={onItemClick} />
       <NavItem icon={User} href="/employees/me" label="My Profile" onClick={onItemClick} />
       <NavItem icon={Clock} href="/attendance" label="My Attendance" onClick={onItemClick} />
+      <NavItem icon={Clock} href="/attendance/regularization" label="Regularization" onClick={onItemClick} />
       <NavGroupItem
         icon={Calendar}
         label="My Leave"

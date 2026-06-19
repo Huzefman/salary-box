@@ -22,6 +22,7 @@ import EditEmployeePage from '@/pages/EditEmployeePage'
 import BulkImportPage from '@/pages/BulkImportPage'
 import AttendancePage from '@/pages/AttendancePage'
 import TeamAttendancePage from '@/pages/TeamAttendancePage'
+import EmployeeAttendanceDrillDownPage from '@/pages/EmployeeAttendanceDrillDownPage'
 import RegularizationPage from '@/pages/RegularizationPage'
 import LeaveDashboardPage from '@/pages/LeaveDashboardPage'
 import ApplyLeavePage from '@/pages/ApplyLeavePage'
@@ -165,6 +166,7 @@ export default function App() {
               <Route path="/attendance" element={<AttendancePage />} />
               <Route element={<RequireRole allow={['owner', 'hr']} />}>
                 <Route path="/attendance/team" element={<TeamAttendancePage />} />
+                <Route path="/attendance/:employeeId" element={<EmployeeAttendanceDrillDownPage />} />
               </Route>
               <Route path="/attendance/regularization" element={<RegularizationPage />} />
 

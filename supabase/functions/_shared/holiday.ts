@@ -11,7 +11,6 @@ export async function isHoliday(
     .from('holidays')
     .select('id, is_optional')
     .eq('date', date)
-    .eq('is_active', true)
 
   if (!holidays || holidays.length === 0) return false
 

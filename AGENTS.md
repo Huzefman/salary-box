@@ -21,12 +21,11 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-18
+Last updated: 2026-06-19
 Active branch: experiment-new-agent
-Current session: M3 Phase 1 + Phase 2 + Phase 3 complete — all 10 Attendance
-Edge Functions implemented and deployed, plus employee self-service frontend
-(CheckInOutCard, AttendanceCalendar, AttendanceSummaryCards, Dashboard wired,
-RegularizationPage). M1 + M2 still 100% complete.
+Current session: M3 Phase 4 complete — Admin attendance frontend (TeamAttendancePage,
+EmployeeAttendanceDrillDownPage, ShiftsPage CRUD, Regularization admin queue).
+All 10 Attendance Edge Functions deployed. M1 + M2 still 100% complete.
 
 ### M2 — Complete Feature Set
 - **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header. Exports
@@ -132,9 +131,35 @@ badge. All nodes link to employee detail. (`src/pages/OrgChartPage.tsx`)
 - `RegularizationPage.tsx` — Full page with new request dialog (status, check-in/out, reason) + request history list with status badges
 
 **Updated feature files:**
-- `api.ts` — Added `fetchRegularizationHistory`, `fetchAppConfig`
+- `api.ts` — Added `fetchRegularizationHistory`, `fetchAppConfig`, `fetchAttendanceRecordByDate`
 - `hooks.ts` — Added `useMyAttendanceCurrentMonth`, `useRegularizationHistory`, `useAppConfig`
 - `mutations.ts` — Fixed coords type to `{ latitude?: number; longitude?: number }` for empty-object calls
+
+### M3 Phase 4 — Admin Attendance Frontend (built this session)
+
+**4 new/rewritten pages:**
+| Page | Route | Roles | What it does |
+|------|-------|-------|-------------|
+| `TeamAttendancePage.tsx` | `/attendance/team` | owner/hr | Month grid: rows per employee, colour-coded day cells, summary columns (P/A/L/WFH), click row to drill-down, CSV export |
+| `EmployeeAttendanceDrillDownPage.tsx` | `/attendance/:employeeId` | owner/hr | Employee calendar + summary cards reused, month nav, manual attendance entry dialog (date, check-in/out, WFH toggle, reason → `manual-attendance` Edge Function) |
+| `ShiftsPage.tsx` | `/settings/shifts` | owner/hr | 3 sections: shifts CRUD grid (add/edit/set-default/deactivate), department assignments (add/remove), employee overrides (searchable employee picker + add/remove) |
+| `RegularizationPage.tsx` | `/attendance/regularization` | owner/hr/employee | Tabbed: "Pending Reviews" (admin queue with approve/reject via `review-regularization` EF) + "My Requests" (existing employee history). New Request dialog uses date picker instead of UUID input — auto-resolves `attendance_record_id` client-side |
+
+**Types added** (`src/types/index.ts`):
+- `Shift`, `DepartmentShift`, `EmployeeShiftOverride`, `RegularizationRequest`
+
+**New feature API** (`src/features/attendance/api.ts`):
+- `fetchAttendanceRecordByDate(employeeId, date)` — resolves UUID from date
+
+**Sidebar:**
+- Added `Regularization` nav item to `EmployeeNav` (was only in admin nav)
+- Mobile responsive sidebar: slide-in overlay drawer with hamburger toggle
+
+**Bugs fixed this session:**
+- **Join syntax:** All embedded Supabase joins changed from implicit (`relation:table(col)`) to explicit FK form (`relation:table!fk_name(col)`) — required when a table has multiple FK references to the same table or for reliable resolution. Affected `TeamAttendancePage`, `ShiftsPage` (fetchDeptAssignments, fetchEmployeeOverrides).
+- **Ordering columns:** `department_shifts` and `employee_shift_overrides` tables have no `created_at` column — changed `.order('created_at')` to `.order('effective_from')`.
+- **Shifts list:** Added `.eq('is_active', true)` to `fetchShiftsWithCounts` so deactivated shifts disappear from the list instead of graying out.
+- **Hard deleted** all `departments`, `designations`, `shifts` rows (with cascading cleanup of `department_shifts`, `employee_shift_overrides`, and nullified FKs on `employees` and `attendance_records`). Reference data needs re-seeding via UI.
 
 ### DB schema changes (cumulative)
 - `profile_edit_requests` table added (migration `0012_create_profile_edit_requests`)
@@ -159,6 +184,27 @@ badge. All nodes link to employee detail. (`src/pages/OrgChartPage.tsx`)
   `origin/feature/auth-rbac` all have the full scaffold and are correct.
   Do not push local `main` to `origin/main` without reconciling this — resolve
   when `dev` merges into `main` at milestone completion.
+- RESEND_API_KEY not configured in Supabase project secrets → welcome email
+  silently fails (non-fatal try/catch).
+- Supabase Auth project setting `mailer_allow_unverified_email_sign_ins` set to
+  `true` — required because `admin.createUser({ email_confirm: true })` wasn't
+  confirming emails when `mailer_autoconfirm` was `false`. Function also calls
+  `admin.updateUserById(id, { email_confirm: true })` as defense-in-depth.
+- Migration naming conflict: two `0010_*` files (first superseded by second).
+  Both applied via `supabase db query`, CLI history out of sync with remote.
+  Run `supabase migration repair` to reconcile.
+- 7 cron functions deployed but schedules not configured in Supabase Dashboard:
+  access-revocation (23:55 IST), exit-date-alert (09:15 IST),
+  future-joiner-activation (00:01 IST), auto-checkout (23:59 IST),
+  compute-attendance-status (00:05 IST), late-mark-deduction (monthly 1st 00:10 IST),
+  incomplete-attendance-reminder (09:00 IST).
+- Geolocation not wired in frontend — CheckInOutCard and Dashboard check-in/out
+  buttons call Edge Functions with empty coords. Needs
+  `navigator.geolocation.getCurrentPosition()` integration to pass lat/lng for
+  geofence validation.
+- All `departments`, `designations`, and `shifts` reference data hard deleted
+  during cleanup — columns on `employees` and `attendance_records` set to null.
+  Need re-seeding via UI (ShiftsPage, DepartmentsPage, DesignationsPage).
 - RESEND_API_KEY not configured in Supabase project secrets → welcome email
   silently fails (non-fatal try/catch).
 - Supabase Auth project setting `mailer_allow_unverified_email_sign_ins` set to
