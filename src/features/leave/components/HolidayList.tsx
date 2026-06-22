@@ -141,36 +141,7 @@ export function HolidayList() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Holidays {year}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (!holidays || holidays.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Holidays {year}</CardTitle>
-          {isAdminOrHR && (
-            <Button size="sm" onClick={openCreate}>Add Holiday</Button>
-          )}
-        </CardHeader>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          No holidays configured for {year}
-        </CardContent>
-      </Card>
-    )
-  }
+  const isEmpty = !holidays || holidays.length === 0
 
   return (
     <>
@@ -182,71 +153,83 @@ export function HolidayList() {
           )}
         </CardHeader>
         <CardContent>
-          {grouped.map((g) => (
-            <div key={g.month} className="mb-6 last:mb-0">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">
-                {monthNames[g.month]}
-              </h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Optional</TableHead>
-                    {isAdminOrHR && <TableHead>Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {g.holidays.map((h) => {
-                    const opted = isOpted(h.id)
-                    return (
-                      <TableRow key={h.id}>
-                        <TableCell className="whitespace-nowrap">
-                          {new Date(h.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        </TableCell>
-                        <TableCell className="font-medium">{h.name}</TableCell>
-                        <TableCell className="capitalize">{h.type}</TableCell>
-                        <TableCell>
-                          <Badge variant={h.is_optional ? 'default' : 'secondary'}>
-                            {h.is_optional ? 'Yes' : 'No'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {h.is_optional && !isAdminOrHR && (
-                            <Button
-                              size="sm"
-                              variant={opted ? 'outline' : 'default'}
-                              onClick={() => handleOptToggle(h.id, opted)}
-                              disabled={optIn.isPending || optOut.isPending}
-                            >
-                              {opted ? 'Opt Out' : 'Opt In'}
-                            </Button>
-                          )}
-                          {isAdminOrHR && (
-                            <div className="flex gap-1">
-                              {h.is_optional && (
-                                <Button
-                                  size="sm"
-                                  variant={opted ? 'outline' : 'default'}
-                                  onClick={() => handleOptToggle(h.id, opted)}
-                                  disabled={optIn.isPending || optOut.isPending}
-                                >
-                                  {opted ? 'Opt Out' : 'Opt In'}
-                                </Button>
-                              )}
-                              <Button size="sm" variant="outline" onClick={() => openEdit(h)}>Edit</Button>
-                              <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(h)}>Delete</Button>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
             </div>
-          ))}
+          ) : isEmpty ? (
+            <div className="py-8 text-center text-muted-foreground">
+              No holidays configured for {year}
+            </div>
+          ) : (
+            grouped.map((g) => (
+              <div key={g.month} className="mb-6 last:mb-0">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-2">
+                  {monthNames[g.month]}
+                </h3>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Optional</TableHead>
+                      {isAdminOrHR && <TableHead>Actions</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {g.holidays.map((h) => {
+                      const opted = isOpted(h.id)
+                      return (
+                        <TableRow key={h.id}>
+                          <TableCell className="whitespace-nowrap">
+                            {new Date(h.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          </TableCell>
+                          <TableCell className="font-medium">{h.name}</TableCell>
+                          <TableCell className="capitalize">{h.type}</TableCell>
+                          <TableCell>
+                            <Badge variant={h.is_optional ? 'default' : 'secondary'}>
+                              {h.is_optional ? 'Yes' : 'No'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {h.is_optional && !isAdminOrHR && (
+                              <Button
+                                size="sm"
+                                variant={opted ? 'outline' : 'default'}
+                                onClick={() => handleOptToggle(h.id, opted)}
+                                disabled={optIn.isPending || optOut.isPending}
+                              >
+                                {opted ? 'Opt Out' : 'Opt In'}
+                              </Button>
+                            )}
+                            {isAdminOrHR && (
+                              <div className="flex gap-1">
+                                {h.is_optional && (
+                                  <Button
+                                    size="sm"
+                                    variant={opted ? 'outline' : 'default'}
+                                    onClick={() => handleOptToggle(h.id, opted)}
+                                    disabled={optIn.isPending || optOut.isPending}
+                                  >
+                                    {opted ? 'Opt Out' : 'Opt In'}
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline" onClick={() => openEdit(h)}>Edit</Button>
+                                <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(h)}>Delete</Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
