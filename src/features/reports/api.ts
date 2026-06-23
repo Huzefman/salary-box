@@ -298,7 +298,7 @@ export async function fetchSelfAttendance(
 ): Promise<SelfAttendanceRow[]> {
   const { from, to } = monthBounds(year, month)
 
-  const [attRes, holRes] = await Promise.all([
+  const [attRes, holRes, shiftRes] = await Promise.all([
     supabase
       .from('attendance_records')
       .select('*')
@@ -311,6 +311,11 @@ export async function fetchSelfAttendance(
       .select('date')
       .gte('date', from)
       .lte('date', to),
+    supabase
+      .from('shifts')
+      .select('weekly_off_days')
+      .eq('is_default', true)
+      .limit(1),
   ])
 
   if (attRes.error) throw attRes.error
@@ -319,6 +324,7 @@ export async function fetchSelfAttendance(
   const records = attRes.data ?? []
   const holidayDates = new Set((holRes.data ?? []).map((h) => h.date))
   const recordMap = new Map(records.map((r) => [r.date, r]))
+  const weeklyOffDays = new Set<number>((shiftRes.data?.[0]?.weekly_off_days as number[] | undefined) ?? [0])
 
   const { daysInMonth } = monthBounds(year, month)
 
@@ -326,10 +332,12 @@ export async function fetchSelfAttendance(
     const day = i + 1
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     const record = recordMap.get(dateStr)
+    const isHoliday = holidayDates.has(dateStr)
+    const isWeeklyOff = !isHoliday && weeklyOffDays.has(new Date(dateStr).getDay())
     return {
       date: dateStr,
       dayOfWeek: new Date(dateStr).getDay(),
-      status: record?.status ?? (holidayDates.has(dateStr) ? 'holiday' : 'absent'),
+      status: record?.status ?? (isHoliday ? 'holiday' : (isWeeklyOff ? 'weekly_off' : 'absent')),
       checkIn: record?.check_in_time ?? null,
       checkOut: record?.check_out_time ?? null,
       totalHours: record?.total_hours ?? null,

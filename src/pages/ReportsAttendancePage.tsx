@@ -16,6 +16,8 @@ const STATUS_CLASS: Record<string, string> = {
   on_leave: 'text-purple-600 bg-purple-50',
   half_day: 'text-orange-600 bg-orange-50',
   holiday: 'text-gray-500 bg-gray-100',
+  weekly_off: 'text-gray-400 bg-gray-50',
+  incomplete: 'text-yellow-600 bg-yellow-50',
 }
 
 export default function ReportsAttendancePage() {

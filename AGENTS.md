@@ -23,10 +23,9 @@ inventing an answer.
 ## Current status — UPDATE THIS EVERY SESSION
 Last updated: 2026-06-23
 Active branch: experiment-new-agent
-Current session: 3 missing pages built — Reports Home (`/reports`), Role Management
-(`/settings/roles`), Audit Logs (`/audit-logs`). All wired in App.tsx routes and
-Sidebar. All M1-M5 feature code now complete. Remaining items are operational
-(re-seed data, schedule 17 crons, fix migration conflict, configure Resend).
+Current session: All 15 cron functions scheduled via pg_cron + pg_net; weekly off
+days (Sundays) now render gray in all calendar/attendance views. Remaining items:
+fix migration naming conflict, configure Resend, re-seed reference data.
 
 ### M2 — Complete Feature Set
 - **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header
@@ -164,6 +163,23 @@ Sidebar. All M1-M5 feature code now complete. Remaining items are operational
 - `hooks.ts` — React Query wrappers for all API functions
 - `utils.ts` — shared `downloadCSV(headers, rows, filename)` utility
 
+### This session — Cron Scheduling & Weekly Off UI Fix
+- **All 15 cron functions scheduled** via `pg_cron` + `pg_net` (enabled extensions, stored
+  project URL + anon key in Vault). Previously only deployed but unscheduled — now run
+  daily at appropriate IST hours via Management API SQL.
+- **Migration `0015_schedule_cron_functions.sql`** saved for version control.
+- **Weekly off day UI fix**: `AttendanceCalendar`, `TeamAttendancePage`, and
+  `fetchSelfAttendance` (ReportsAttendancePage) now fetch the default shift's
+  `weekly_off_days` and mark Sundays as `weekly_off` (gray) instead of hiding them
+  or showing as absent. Applied to employee calendar, team grid, and self-report.
+
+### Remaining items
+1. Configure `RESEND_API_KEY` in Supabase project secrets for transactional emails
+2. Fix migration naming conflict (`0010_*` duplication) — run `supabase migration repair`
+3. Re-seed `departments`, `designations`, `shifts` reference data via UI
+4. Additional pages: absenteeism tab on ReportsAttendancePage (S-24),
+   employee leave self-view on ReportsLeavePage (S-30)
+
 ### Edge Functions Deployed (cumulative)
 - M1/M2: `add-lifecycle-event`, `upload-document`, `generate-presigned-url`,
   `bulk-import-employees`, `update-employee`, `create-employee`,
@@ -186,8 +202,6 @@ Sidebar. All M1-M5 feature code now complete. Remaining items are operational
 - RESEND_API_KEY not configured → welcome email silently fails
 - Auth setting `mailer_allow_unverified_email_sign_ins = true` required
 - Migration naming conflict: two `0010_*` files — run `supabase migration repair`
-- **17 cron functions not scheduled** in Supabase Dashboard:
-  10 M3 crons + 7 M4 leave crons — all deployed but schedules need configuration
 - All `departments`, `designations`, `shifts` rows hard deleted — re-seed via UI
 
 ## Supabase project access (for agents)

@@ -39,6 +39,7 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
   const [showAll, setShowAll] = useState(false)
 
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set())
+  const [weeklyOffDays, setWeeklyOffDays] = useState<number[]>([0])
 
   useEffect(() => {
     const from = `${year}-${String(month).padStart(2, '0')}-01`
@@ -46,6 +47,9 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
     const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     supabase.from('holidays').select('date').gte('date', from).lte('date', to).then(({ data }) => {
       setHolidayDates(new Set((data ?? []).map((h) => h.date)))
+    })
+    supabase.from('shifts').select('weekly_off_days').eq('is_default', true).limit(1).then(({ data }) => {
+      if (data && data.length > 0) setWeeklyOffDays(data[0].weekly_off_days)
     })
   }, [year, month])
 
@@ -96,19 +100,21 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
               const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
               const record = recordMap.get(dateStr)
               const rawStatus = record?.status as string | undefined
+              const dayOfWeek = new Date(year, month - 1, day).getDay()
               const isHoliday = !rawStatus && holidayDates.has(dateStr)
-              const status = isHoliday ? 'holiday' : (rawStatus ?? (showAll ? 'absent' : null))
+              const isWeeklyOff = !rawStatus && !isHoliday && weeklyOffDays.includes(dayOfWeek)
+              const status = isWeeklyOff ? 'weekly_off' : (isHoliday ? 'holiday' : (rawStatus ?? (showAll ? 'absent' : null)))
 
               if (!status) return <div key={day} className="aspect-square" />
 
-              return isHoliday ? (
+              return (isHoliday || isWeeklyOff) ? (
                 <div
                   key={day}
                   className={cn(
                     'aspect-square rounded-md text-xs flex items-center justify-center text-white font-medium',
-                    STATUS_COLORS['holiday']
+                    STATUS_COLORS[isWeeklyOff ? 'weekly_off' : 'holiday']
                   )}
-                  title="Holiday"
+                  title={isWeeklyOff ? 'Weekly Off' : 'Holiday'}
                 >
                   {day}
                 </div>
