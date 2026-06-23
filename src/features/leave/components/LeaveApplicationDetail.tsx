@@ -3,11 +3,13 @@ import type { LeaveApplicationWithRelations } from '@/types'
 import { useAuthStore } from '@/hooks/useAuth'
 import { useCancelLeave, useRequestLeaveCancellation } from '../mutations'
 import { getLeaveStatusLabel } from '../utils'
+import { getPresignedUrl } from '@/lib/edge'
 import { ReviewActions } from './ReviewActions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 type Props = { application: LeaveApplicationWithRelations }
@@ -17,6 +19,7 @@ export function LeaveApplicationDetail({ application }: Props) {
   const cancelLeave = useCancelLeave()
   const requestCancel = useRequestLeaveCancellation()
   const [cancelling, setCancelling] = useState(false)
+  const [openingAttachment, setOpeningAttachment] = useState(false)
 
   const isOwnerHr =
     employee?.role === 'owner' || employee?.role === 'hr'
@@ -140,14 +143,26 @@ export function LeaveApplicationDetail({ application }: Props) {
         {application.attachment_path && (
           <div>
             <p className="text-xs text-muted-foreground mb-1">Attachment</p>
-            <a
-              href={application.attachment_path}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline"
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-blue-600"
+              disabled={openingAttachment}
+              onClick={async () => {
+                setOpeningAttachment(true)
+                try {
+                  const { url } = await getPresignedUrl(application.attachment_path!)
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                } catch {
+                  toast.error('Failed to open attachment')
+                } finally {
+                  setOpeningAttachment(false)
+                }
+              }}
             >
+              {openingAttachment && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
               View attachment
-            </a>
+            </Button>
           </div>
         )}
 

@@ -39,7 +39,7 @@ export async function fetchMyLeaveApplications(
 export async function fetchPendingLeaveApplications(): Promise<LeaveApplicationWithRelations[]> {
   const { data, error } = await supabase
     .from('leave_applications')
-    .select('*, leave_type:leave_types(*), employee:employees(id, first_name, last_name, employee_code)')
+    .select('*, leave_type:leave_types(*), employee:employees!leave_applications_employee_id_fkey(id, first_name, last_name, employee_code)')
     .eq('status', 'pending')
     .order('applied_at')
   if (error) throw error
@@ -49,7 +49,7 @@ export async function fetchPendingLeaveApplications(): Promise<LeaveApplicationW
 export async function fetchCancellationRequests(): Promise<LeaveApplicationWithRelations[]> {
   const { data, error } = await supabase
     .from('leave_applications')
-    .select('*, leave_type:leave_types(*), employee:employees(id, first_name, last_name, employee_code)')
+    .select('*, leave_type:leave_types(*), employee:employees!leave_applications_employee_id_fkey(id, first_name, last_name, employee_code)')
     .eq('cancellation_requested', true)
     .order('applied_at')
   if (error) throw error
@@ -59,7 +59,7 @@ export async function fetchCancellationRequests(): Promise<LeaveApplicationWithR
 export async function fetchLeaveApplication(id: string): Promise<LeaveApplicationWithRelations> {
   const { data, error } = await supabase
     .from('leave_applications')
-    .select('*, leave_type:leave_types(*), employee:employees(id, first_name, last_name, employee_code)')
+    .select('*, leave_type:leave_types(*), employee:employees!leave_applications_employee_id_fkey(id, first_name, last_name, employee_code)')
     .eq('id', id)
     .single()
   if (error) throw error

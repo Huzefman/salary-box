@@ -54,6 +54,7 @@ export function LeaveApplicationList({ applications, showEmployee }: Props) {
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {app.leave_type.name} &middot; {app.reason}
+                    {app.attachment_path && ' 📎'}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">

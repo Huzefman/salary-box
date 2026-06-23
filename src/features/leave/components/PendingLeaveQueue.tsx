@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePendingLeaveApplications, useCancellationRequests } from '../hooks'
 import { useReviewLeave, useConfirmLeaveCancellation } from '../mutations'
+import { getPresignedUrl } from '@/lib/edge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -27,11 +29,14 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Loader2, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function PendingLeaveQueue() {
-  const { data: pending, isLoading: loadingPending } = usePendingLeaveApplications()
-  const { data: cancellations, isLoading: loadingCancellations } = useCancellationRequests()
+  const navigate = useNavigate()
+  const { data: pending, isLoading: loadingPending, error: pendingError } = usePendingLeaveApplications()
+  const { data: cancellations, isLoading: loadingCancellations, error: cancellationsError } = useCancellationRequests()
+  const [openingAttachments, setOpeningAttachments] = useState<Set<string>>(new Set())
 
   const reviewLeave = useReviewLeave()
   const confirmCancel = useConfirmLeaveCancellation()
@@ -100,6 +105,12 @@ export function PendingLeaveQueue() {
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
+        ) : pendingError ? (
+          <Card>
+            <CardContent className="py-8 text-center text-destructive">
+              Failed to load pending leaves. Please try again.
+            </CardContent>
+          </Card>
         ) : !pending || pending.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
@@ -120,13 +131,18 @@ export function PendingLeaveQueue() {
                     <TableHead>Dates</TableHead>
                     <TableHead>Days</TableHead>
                     <TableHead>Reason</TableHead>
+                    <TableHead>Att.</TableHead>
                     <TableHead>Applied At</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pending.map((app) => (
-                    <TableRow key={app.id}>
+                    <TableRow
+                      key={app.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/leave/applications/${app.id}`)}
+                    >
                       <TableCell className="font-medium">
                         {app.employee?.first_name} {app.employee?.last_name}
                         <br />
@@ -142,10 +158,44 @@ export function PendingLeaveQueue() {
                       <TableCell className="max-w-[200px] truncate">
                         {app.reason}
                       </TableCell>
+                      <TableCell className="text-center">
+                        {app.attachment_path ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            disabled={openingAttachments.has(app.id)}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              setOpeningAttachments((prev) => new Set(prev).add(app.id))
+                              try {
+                                const { url } = await getPresignedUrl(app.attachment_path!)
+                                window.open(url, '_blank', 'noopener,noreferrer')
+                              } catch {
+                                toast.error('Failed to open attachment')
+                              } finally {
+                                setOpeningAttachments((prev) => {
+                                  const next = new Set(prev)
+                                  next.delete(app.id)
+                                  return next
+                                })
+                              }
+                            }}
+                          >
+                            {openingAttachments.has(app.id) ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Paperclip className="h-3 w-3" />
+                            )}
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {new Date(app.applied_at).toLocaleDateString('en-IN')}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1">
                           <Button
                             size="sm"
@@ -178,6 +228,12 @@ export function PendingLeaveQueue() {
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
+        ) : cancellationsError ? (
+          <Card>
+            <CardContent className="py-8 text-center text-destructive">
+              Failed to load cancellation requests. Please try again.
+            </CardContent>
+          </Card>
         ) : !cancellations || cancellations.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
@@ -203,7 +259,11 @@ export function PendingLeaveQueue() {
                 </TableHeader>
                 <TableBody>
                   {cancellations.map((app) => (
-                    <TableRow key={app.id}>
+                    <TableRow
+                      key={app.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/leave/applications/${app.id}`)}
+                    >
                       <TableCell className="font-medium">
                         {app.employee?.first_name} {app.employee?.last_name}
                         <br />
@@ -221,7 +281,7 @@ export function PendingLeaveQueue() {
                       <TableCell className="whitespace-nowrap">
                         {new Date(app.applied_at).toLocaleDateString('en-IN')}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1">
                           <Button
                             size="sm"

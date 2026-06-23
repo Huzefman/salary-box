@@ -56,27 +56,26 @@ Deno.serve(async (req: Request) => {
           .single()
 
         if (balance) {
-          const futureWorkingDays = app.working_days_count
           await supabase
             .from('leave_balances')
-            .update({ taken: Math.max(0, balance.taken - futureWorkingDays) })
+            .update({ taken: Math.max(0, balance.taken - app.working_days_count) })
             .eq('id', balance.id)
         }
+      }
 
-        const { data: records } = await supabase
+      const { data: records } = await supabase
+        .from('attendance_records')
+        .select('id')
+        .eq('employee_id', app.employee_id)
+        .gte('date', app.from_date)
+        .lte('date', app.to_date)
+        .eq('status', 'on_leave')
+
+      for (const rec of records ?? []) {
+        await supabase
           .from('attendance_records')
-          .select('id, date')
-          .eq('employee_id', app.employee_id)
-          .gte('date', today)
-          .lte('date', app.to_date)
-          .eq('status', 'on_leave')
-
-        for (const rec of records ?? []) {
-          await supabase
-            .from('attendance_records')
-            .update({ status: 'absent' })
-            .eq('id', rec.id)
-        }
+          .delete()
+          .eq('id', rec.id)
       }
 
       await createNotification({

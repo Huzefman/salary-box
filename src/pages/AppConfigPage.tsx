@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { useAuthStore } from '@/hooks/useAuth'
+import { callEdgeFunction } from '@/lib/edge'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Save, X } from 'lucide-react'
@@ -21,7 +21,6 @@ async function fetchConfig(): Promise<Config[]> {
 
 export default function AppConfigPage() {
   const qc = useQueryClient()
-  const employee = useAuthStore((s) => s.employee)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
 
@@ -32,18 +31,20 @@ export default function AppConfigPage() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const { error } = await supabase
-        .from('app_config')
-        .update({ value, updated_by: employee?.id ?? null })
-        .eq('key', key)
-      if (error) throw error
+      await callEdgeFunction<{ key: string; value: string }, { key: string; value: string }>(
+        'update-app-config',
+        { key, value }
+      )
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['app-config'] })
       toast.success('Configuration updated')
       setEditingKey(null)
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: unknown) => {
+      const error = err as { message?: string }
+      toast.error(error?.message ?? 'Failed to update configuration')
+    },
   })
 
   function startEdit(item: Config) {

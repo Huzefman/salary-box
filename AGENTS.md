@@ -21,12 +21,17 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-22
+Last updated: 2026-06-23
 Active branch: experiment-new-agent
-Current session: M4 completed — all Edge Functions deployed and working.
-Leave submits with attachments, geofence hard-blocks non-owners, holiday sync
-and calendar display fixed. Leave approvals queue not showing (bug deferred).
-M1+M2+M3+M4 code complete. M5 not started.
+Current session: `update-app-config` EF fixed. Root cause: `log_changes` trigger
+function is SECURITY DEFINER with `search_path=public`, but `uuid_generate_v5()`
+(from uuid-ossp extension) lives in the `extensions` schema → every UPDATE/DELETE
+on `app_config` crashed with `42883`. Fixed with `public.uuid_generate_v5()`
+wrapper (migration `0014_fix_uuid_ossp_search_path.sql`). EF now works end-to-end,
+verified with valid/invalid inputs.
+
+**M5 — Reports & Polish complete.** All 5 report pages implemented (see below).
+M1+M2+M3+M4+M5 code complete.
 
 ### M2 — Complete Feature Set
 - **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header
@@ -124,6 +129,12 @@ M1+M2+M3+M4 code complete. M5 not started.
   dropdown menu panel — shows avatar initials + employee info, Light/Dark/System
   theme options (with active highlight), and Sign Out with LogOut icon
 
+### Bugs Fixed
+- **working-days.ts + holiday.ts**: Removed `.eq('is_active', true)` on `holidays` table (table has no `is_active` column)
+- **LeaveTypeForm**: Fixed blank screen on dialog open — Radix Select crashes with empty string `""` values; changed default to `"all"`, mapped back to `null` on save
+- **Join syntax**: Supabase FK joins throughout
+- **Geolocation wiring**: CheckInOutCard and Dashboard now pass real coords
+
 ### This session — Geofence Enforcement & M4 Polish
 - **Geofence hard-block**: `check-in` EF now rejects non-owner users who are outside any active geofence zone (403 FORBIDDEN). Location permission denial/timeout also blocked for non-owner.
 - **HolidayList bugs fixed**: Empty state now shows "Add Holiday" button for admin/HR; three early returns consolidated so dialogs (Add/Edit/Delete) are always in the DOM.
@@ -137,17 +148,32 @@ M1+M2+M3+M4 code complete. M5 not started.
 - **submit-leave redeployed**: Was missing from deployed list despite deploy command reporting success.
 - **compute-attendance-status + incomplete-attendance-reminder redeployed**: Both also missing.
 
-### Bugs Fixed
-- **working-days.ts + holiday.ts**: Removed `.eq('is_active', true)` on `holidays` table (table has no `is_active` column)
-- **LeaveTypeForm**: Fixed blank screen on dialog open — Radix Select crashes with empty string `""` values; changed default to `"all"`, mapped back to `null` on save
-- **Join syntax**: Supabase FK joins throughout
-- **Geolocation wiring**: CheckInOutCard and Dashboard now pass real coords
+### This session — `update-app-config` EF & `uuid_generate_v5` fix
+- **`update-app-config` EF kept failing** with `INTERNAL_ERROR` / "Failed to update configuration"
+- **Root cause found**: The `log_changes` trigger function is SECURITY DEFINER with `search_path=public`, but `uuid_generate_v5()` (from uuid-ossp extension) lives in the `extensions` schema → every UPDATE/DELETE on `app_config` crashed with `42883: function uuid_generate_v5(uuid, text) does not exist`
+- **Fix**: Created `public.uuid_generate_v5(namespace uuid, name text)` wrapper delegating to `extensions.uuid_generate_v5()`. Applied via migration `0014_fix_uuid_ossp_search_path.sql` (applied via Management API SQL query)
+- **Result**: `update-app-config` EF now works end-to-end — verified with valid input (`leave_sla_business_days` → `5` returned `{key, value}`) and invalid key returned `VALIDATION_ERROR`
+
+### M5 — Reports & Polish (completed this session)
+**5 reports pages implemented:**
+| Page | Route | Key features |
+|---|---|---|
+| `ReportsAttendancePage` | `/reports/attendance` | Role-aware: Owner/HR see monthly summary table with dept filter + CSV export; Employee sees self-attendance day-by-day table with summary cards |
+| `ReportsHeadcountPage` | `/reports/headcount` | Filters for department, status (active/probation/resigned/terminated), type (full-time/part-time/contractor/intern) + summary cards + CSV export |
+| `ReportsRegularizationPage` | `/reports/regularization` | Date range, department, and status filters; table with employee, date (via attendance_records join), reason, reviewer; CSV export |
+| `ReportsHeatmapPage` | `/reports/heatmap` | Monthly grid: departments × days, color-coded by attendance % (green→red); month navigation; avg % column |
+| `SettingsNotificationsPage` | `/settings/notifications` | Editable list of all 6 `app_config` keys with type-specific inputs (boolean dropdown, text, time), saves via `update-app-config` EF |
+
+**Feature layer (`src/features/reports/`):**
+- `api.ts` — 6 query functions: `fetchAttendanceReport`, `fetchHeatmapData`, `fetchHeadcountReport`, `fetchRegularizationLog`, `fetchSelfAttendance`, `fetchDepartments` — all with typed return types
+- `hooks.ts` — React Query wrappers for all API functions
+- `utils.ts` — shared `downloadCSV(headers, rows, filename)` utility
 
 ### Edge Functions Deployed (cumulative)
 - M1/M2: `add-lifecycle-event`, `upload-document`, `generate-presigned-url`,
   `bulk-import-employees`, `update-employee`, `create-employee`,
   `access-revocation`, `exit-date-alert`, `future-joiner-activation`,
-  `review-profile-edit`
+  `review-profile-edit`, `update-app-config`, `probation-end-alert`
 - **M3:** `check-in`, `check-out`, `log-wfh`, `auto-checkout`,
   `compute-attendance-status`, `manual-attendance`,
   `submit-regularization`, `review-regularization`,
@@ -168,10 +194,6 @@ M1+M2+M3+M4 code complete. M5 not started.
 - **17 cron functions not scheduled** in Supabase Dashboard:
   10 M3 crons + 7 M4 leave crons — all deployed but schedules need configuration
 - All `departments`, `designations`, `shifts` rows hard deleted — re-seed via UI
-- **Leave approvals queue not showing submitted leaves** — PendingLeaveQueue fetches
-  `leave_applications` with `.eq('status', 'pending')` and joins `employee` relation.
-  RLS is correct (owner/hr see all rows). Likely a join syntax issue or the query
-  silently fails. Investigate `fetchPendingLeaveApplications` in `api.ts`.
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,

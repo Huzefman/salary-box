@@ -25,6 +25,13 @@ export async function callEdgeFunction<TBody, TResponse>(
   return json.data as TResponse
 }
 
+export async function getPresignedUrl(storagePath: string, bucket: string = 'employee-documents') {
+  return callEdgeFunction<{ storage_path: string; bucket: string }, { url: string; expires_at: string }>(
+    'generate-presigned-url',
+    { storage_path: storagePath, bucket }
+  )
+}
+
 export async function callEdgeFunctionFormData<TResponse>(
   functionName: string,
   formData: FormData
