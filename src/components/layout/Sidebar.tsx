@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   X,
+  ClipboardList,
 } from 'lucide-react'
 import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
@@ -64,18 +65,20 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Comp-Off', href: '/leave/comp-off/request', roles: ['owner', 'hr', 'employee'] },
     ],
   },
-  {
-    label: 'Reports',
-    icon: BarChart3,
-    roles: ['owner', 'hr', 'system_admin'],
-    children: [
-      { label: 'Attendance Report', href: '/reports/attendance', roles: ['owner', 'hr'] },
+    {
+      label: 'Reports',
+      icon: BarChart3,
+      roles: ['owner', 'hr', 'system_admin'],
+      children: [
+        { label: 'Reports Home', href: '/reports', roles: ['owner', 'hr', 'system_admin'] },
+        { label: 'Attendance Report', href: '/reports/attendance', roles: ['owner', 'hr'] },
       { label: 'Leave Report', href: '/reports/leave', roles: ['owner', 'hr'] },
       { label: 'Headcount', href: '/reports/headcount', roles: ['owner', 'system_admin'] },
       { label: 'Regularization Log', href: '/reports/regularization', roles: ['owner'] },
       { label: 'Heatmap', href: '/reports/heatmap', roles: ['owner'] },
     ],
   },
+  { label: 'Audit Logs', href: '/audit-logs', icon: ClipboardList, roles: ['owner', 'system_admin'] },
   {
     label: 'Settings',
     icon: Settings,
@@ -89,6 +92,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Geofence', href: '/settings/geofence', roles: ['owner', 'system_admin'] },
       { label: 'Notifications', href: '/settings/notifications', roles: ['owner'] },
       { label: 'Onboarding', href: '/settings/onboarding-checklist', roles: ['owner'] },
+      { label: 'Role Management', href: '/settings/roles', roles: ['owner'] },
       { label: 'App Config', href: '/settings/app-config', roles: ['owner'] },
     ],
   },

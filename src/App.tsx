@@ -46,6 +46,9 @@ import ReportsLeavePage from '@/pages/ReportsLeavePage'
 import ReportsHeadcountPage from '@/pages/ReportsHeadcountPage'
 import ReportsRegularizationPage from '@/pages/ReportsRegularizationPage'
 import ReportsHeatmapPage from '@/pages/ReportsHeatmapPage'
+import ReportsHomePage from '@/pages/ReportsHomePage'
+import RolesPage from '@/pages/RolesPage'
+import AuditLogsPage from '@/pages/AuditLogsPage'
 
 export default function App() {
   const { setAuth, clearAuth, setLoading, setPasswordRecovery } = useAuthStore()
@@ -198,6 +201,7 @@ export default function App() {
               <Route element={<RequireRole allow={['owner']} />}>
                 <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
                 <Route path="/settings/onboarding-checklist" element={<SettingsOnboardingPage />} />
+                <Route path="/settings/roles" element={<RolesPage />} />
               </Route>
 
               {/* Employee self-profile */}
@@ -207,6 +211,9 @@ export default function App() {
               </Route>
 
               {/* Reports */}
+              <Route element={<RequireRole allow={['owner', 'hr', 'employee', 'system_admin']} />}>
+                <Route path="/reports" element={<ReportsHomePage />} />
+              </Route>
               <Route element={<RequireRole allow={['owner', 'hr', 'employee']} />}>
                 <Route path="/reports/attendance" element={<ReportsAttendancePage />} />
               </Route>
@@ -219,6 +226,11 @@ export default function App() {
               <Route element={<RequireRole allow={['owner']} />}>
                 <Route path="/reports/regularization" element={<ReportsRegularizationPage />} />
                 <Route path="/reports/heatmap" element={<ReportsHeatmapPage />} />
+              </Route>
+
+              {/* Audit Logs */}
+              <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
+                <Route path="/audit-logs" element={<AuditLogsPage />} />
               </Route>
             </Route>
           </Route>

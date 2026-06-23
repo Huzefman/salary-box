@@ -23,15 +23,10 @@ inventing an answer.
 ## Current status — UPDATE THIS EVERY SESSION
 Last updated: 2026-06-23
 Active branch: experiment-new-agent
-Current session: `update-app-config` EF fixed. Root cause: `log_changes` trigger
-function is SECURITY DEFINER with `search_path=public`, but `uuid_generate_v5()`
-(from uuid-ossp extension) lives in the `extensions` schema → every UPDATE/DELETE
-on `app_config` crashed with `42883`. Fixed with `public.uuid_generate_v5()`
-wrapper (migration `0014_fix_uuid_ossp_search_path.sql`). EF now works end-to-end,
-verified with valid/invalid inputs.
-
-**M5 — Reports & Polish complete.** All 5 report pages implemented (see below).
-M1+M2+M3+M4+M5 code complete.
+Current session: 3 missing pages built — Reports Home (`/reports`), Role Management
+(`/settings/roles`), Audit Logs (`/audit-logs`). All wired in App.tsx routes and
+Sidebar. All M1-M5 feature code now complete. Remaining items are operational
+(re-seed data, schedule 17 crons, fix migration conflict, configure Resend).
 
 ### M2 — Complete Feature Set
 - **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header
