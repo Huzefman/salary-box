@@ -3,13 +3,9 @@ import { getServiceClient } from '../_shared/supabase.ts'
 import { resolveShift } from '../_shared/shift.ts'
 import { isHoliday, isWeeklyOff } from '../_shared/holiday.ts'
 import {
-  computeTotalHours,
-  computeOvertimeFromShift,
-  computeIsLate,
   computeStatus,
   type AttendanceRecordForCompute,
 } from '../_shared/attendance.ts'
-import type { ShiftInfo } from '../_shared/shift.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
@@ -40,12 +36,11 @@ Deno.serve(async (req: Request) => {
         is_wfh: record.is_wfh,
         status: record.status,
         total_hours: record.total_hours,
-        overtime_hours: record.overtime_hours,
         is_late: record.is_late,
         is_manually_entered: record.is_manually_entered,
       }
 
-      let shift: ShiftInfo
+      let shift
       try {
         shift = await resolveShift(record.employee_id, yesterday)
       } catch {
@@ -55,35 +50,12 @@ Deno.serve(async (req: Request) => {
       const holidayFlag = await isHoliday(record.employee_id, yesterday)
       const woffFlag = isWeeklyOff(shift, yesterday)
 
-      const totalHours = rec.check_in_time && rec.check_out_time
-        ? computeTotalHours(
-            rec.check_in_time,
-            rec.check_out_time,
-            shift.break_minutes,
-            shift.is_night_shift
-          )
-        : null
-
-      const overtimeHours = totalHours != null
-        ? computeOvertimeFromShift(totalHours, shift.start_time, shift.end_time, shift.break_minutes)
-        : null
-
-      const isLate = rec.check_in_time
-        ? computeIsLate(rec.check_in_time, shift.start_time, shift.grace_period_minutes)
-        : false
-
-      const result = computeStatus(
-        { ...rec, total_hours: totalHours ?? rec.total_hours, is_late: isLate },
-        shift,
-        holidayFlag,
-        woffFlag
-      )
+      const result = computeStatus(rec, shift, holidayFlag, woffFlag)
 
       const { error: updateError } = await supabase
         .from('attendance_records')
         .update({
           total_hours: result.total_hours,
-          overtime_hours: result.overtime_hours,
           is_late: result.is_late,
           is_geo_flagged: record.is_geo_flagged,
           status: result.status,

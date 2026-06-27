@@ -32,7 +32,21 @@ Deno.serve(async (req: Request) => {
     }
 
     const now = new Date().toISOString()
-    const isLate = computeIsLate(now, shift.start_time, shift.grace_period_minutes)
+
+    // BR-ATT-06: Late if check-in > shift start (no grace)
+    const isLate = computeIsLate(now, shift.start_time, 0)
+
+    // Half-day if check-in >= 20 minutes after shift start
+    let status: string | null = null
+    if (isLate) {
+      const checkInDate = new Date(now)
+      const [sh, sm] = shift.start_time.split(':').map(Number)
+      const halfDayCutoff = new Date(now)
+      halfDayCutoff.setHours(sh, sm + 20, 0, 0)
+      if (checkInDate.getTime() > halfDayCutoff.getTime()) {
+        status = 'half_day'
+      }
+    }
 
     const { data: existing } = await supabase
       .from('attendance_records')
@@ -45,6 +59,16 @@ Deno.serve(async (req: Request) => {
       throw { code: 'CONFLICT', message: 'Already checked in today.', status: 409 }
     }
 
+    // Get late count this month for frontend warning
+    const monthStart = today.slice(0, 7) + '-01'
+    const { count: lateCount } = await supabase
+      .from('attendance_records')
+      .select('*', { count: 'exact', head: true })
+      .eq('employee_id', actor.actorId)
+      .eq('is_late', true)
+      .gte('date', monthStart)
+      .lt('date', today)
+
     const payload: Record<string, unknown> = {
       employee_id: actor.actorId,
       date: today,
@@ -54,13 +78,14 @@ Deno.serve(async (req: Request) => {
       is_late: isLate,
       is_geo_flagged: isGeoFlagged,
     }
+    if (status) payload.status = status
     if (latitude != null) payload.check_in_lat = Number(latitude)
     if (longitude != null) payload.check_in_lng = Number(longitude)
 
     const { data: record, error } = await supabase
       .from('attendance_records')
       .upsert(payload, { onConflict: 'employee_id, date', ignoreDuplicates: false })
-      .select('id, check_in_time, is_late, is_geo_flagged')
+      .select('id, check_in_time, is_late, is_geo_flagged, status')
       .single()
 
     if (error) throw error
@@ -70,6 +95,9 @@ Deno.serve(async (req: Request) => {
       check_in_time: record.check_in_time,
       is_late: record.is_late,
       is_geo_flagged: record.is_geo_flagged,
+      status: record.status,
+      late_count_this_month: (lateCount ?? 0) + (isLate ? 1 : 0),
+      late_threshold: shift.late_mark_threshold,
     })
   } catch (e) {
     return handleError(e)

@@ -3,7 +3,7 @@ import { ok, cors, handleError } from '../_shared/response.ts'
 import { getServiceClient } from '../_shared/supabase.ts'
 import { resolveShift } from '../_shared/shift.ts'
 import { checkDrift } from '../_shared/geo.ts'
-import { computeTotalHours, computeOvertimeFromShift } from '../_shared/attendance.ts'
+import { computeTotalHours } from '../_shared/attendance.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
@@ -11,7 +11,7 @@ Deno.serve(async (req: Request) => {
   try {
     const actor = await getActor(req)
     assertRole(actor, ['owner', 'hr', 'employee'])
-    const { latitude, longitude } = await req.json().catch(() => ({}))
+    const { latitude, longitude, early_checkout_reason } = await req.json().catch(() => ({}))
 
     const today = new Date().toISOString().slice(0, 10)
     const supabase = getServiceClient()
@@ -34,17 +34,27 @@ Deno.serve(async (req: Request) => {
     const now = new Date().toISOString()
     const shift = await resolveShift(actor.actorId, today)
 
+    // Early checkout validation
+    const [eh, em] = shift.end_time.split(':').map(Number)
+    const checkOutDate = new Date(now)
+    const shiftEndToday = new Date(now)
+    shiftEndToday.setHours(eh, em, 0, 0)
+    const isEarly = checkOutDate.getTime() < shiftEndToday.getTime()
+
+    if (isEarly && !early_checkout_reason) {
+      throw {
+        code: 'VALIDATION_ERROR',
+        message: 'Early checkout requires an early_checkout_reason.',
+        status: 400,
+      }
+    }
+
     const totalHours = computeTotalHours(
       record.check_in_time,
       now,
       shift.break_minutes,
-      shift.is_night_shift
-    )
-    const overtimeHours = computeOvertimeFromShift(
-      totalHours,
-      shift.start_time,
-      shift.end_time,
-      shift.break_minutes
+      shift.is_night_shift,
+      shift.end_time
     )
 
     let isGeoFlagged = record.is_geo_flagged
@@ -66,8 +76,11 @@ Deno.serve(async (req: Request) => {
     const updates: Record<string, unknown> = {
       check_out_time: now,
       total_hours: totalHours,
-      overtime_hours: overtimeHours,
       is_geo_flagged: isGeoFlagged,
+    }
+    if (isEarly) {
+      updates.early_checkout_reason = early_checkout_reason
+      updates.early_checkout_status = 'pending'
     }
     if (latitude != null) updates.check_out_lat = Number(latitude)
     if (longitude != null) updates.check_out_lng = Number(longitude)
@@ -76,7 +89,7 @@ Deno.serve(async (req: Request) => {
       .from('attendance_records')
       .update(updates)
       .eq('id', record.id)
-      .select('id, check_out_time, total_hours, overtime_hours, is_geo_flagged')
+      .select('id, check_out_time, total_hours, is_geo_flagged')
       .single()
 
     if (updateError) throw updateError
@@ -85,7 +98,6 @@ Deno.serve(async (req: Request) => {
       attendance_record_id: updated.id,
       check_out_time: updated.check_out_time,
       total_hours: updated.total_hours,
-      overtime_hours: updated.overtime_hours,
       is_geo_flagged: updated.is_geo_flagged,
     })
   } catch (e) {

@@ -36,6 +36,28 @@ const STATUS_OPTIONS = [
   { value: 'work_from_home', label: 'Work From Home' },
 ] as const
 
+async function fetchEarlyCheckouts() {
+  const { data, error } = await supabase
+    .from('attendance_records')
+    .select('id, employee_id, date, check_in_time, check_out_time, total_hours, is_late, early_checkout_reason, early_checkout_status, employee:employees!employee_id(id, first_name, last_name, employee_code)')
+    .eq('early_checkout_status', 'pending')
+    .not('early_checkout_reason', 'is', null)
+    .order('date', { ascending: false })
+  if (error) throw error
+  return data as Array<{
+    id: string
+    employee_id: string
+    date: string
+    check_in_time: string | null
+    check_out_time: string | null
+    total_hours: number | null
+    is_late: boolean
+    early_checkout_reason: string | null
+    early_checkout_status: string | null
+    employee: { id: string; first_name: string; last_name: string; employee_code: string } | null
+  }>
+}
+
 async function fetchPendingReviews() {
   const { data, error } = await supabase
     .from('attendance_regularization_requests')
@@ -252,6 +274,112 @@ function MyRequestsTab() {
   )
 }
 
+function EarlyCheckoutsTab() {
+  const qc = useQueryClient()
+  const [confirmDialog, setConfirmDialog] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null)
+
+  const { data: earlyCheckouts, isLoading } = useQuery({
+    queryKey: ['attendance', 'early-checkouts', 'pending'],
+    queryFn: fetchEarlyCheckouts,
+  })
+
+  const resolveMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: 'approve' | 'reject' }) => {
+      const supabase = await import('@/lib/supabase').then((m) => m.supabase)
+      const { error } = await supabase
+        .from('attendance_records')
+        .update({
+          early_checkout_status: action === 'approve' ? 'approved' : 'rejected',
+          ...(action === 'reject' ? { status: 'absent' } : {}),
+        })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+      toast.success('Early checkout reviewed')
+      setConfirmDialog(null)
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Pending Early Checkouts ({earlyCheckouts?.length ?? 0})</CardTitle></CardHeader>
+        <CardContent>
+          {!earlyCheckouts || earlyCheckouts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No pending early checkouts.</p>
+          ) : (
+            <div className="space-y-3">
+              {earlyCheckouts.map((rec) => (
+                <div key={rec.id} className="rounded-lg border p-3 text-sm">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="font-medium">
+                        {rec.employee?.first_name} {rec.employee?.last_name}
+                        <span className="text-muted-foreground font-normal"> ({rec.employee?.employee_code})</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">Date: {rec.date}</p>
+                      {rec.check_in_time && (
+                        <p className="text-xs text-muted-foreground">
+                          Check-in: {new Date(rec.check_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          {rec.check_out_time && ` → Check-out: ${new Date(rec.check_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
+                        </p>
+                      )}
+                      <p className="text-xs italic">Reason: {rec.early_checkout_reason}</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        disabled={resolveMutation.isPending}
+                        onClick={() => resolveMutation.mutate({ id: rec.id, action: 'approve' })}
+                      >
+                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" />Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={resolveMutation.isPending}
+                        onClick={() => setConfirmDialog({ id: rec.id, action: 'reject' })}
+                      >
+                        <XCircle className="mr-1 h-3.5 w-3.5" />Reject
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!confirmDialog} onOpenChange={(o) => { if (!o) setConfirmDialog(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reject Early Checkout</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This will mark the attendance as absent. Are you sure?</p>
+          <Button
+            variant="destructive"
+            className="w-full"
+            disabled={resolveMutation.isPending}
+            onClick={() => {
+              if (confirmDialog) resolveMutation.mutate({ id: confirmDialog.id, action: 'reject' })
+            }}
+          >
+            {resolveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Confirm Rejection
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
 function PendingReviewsTab() {
   const qc = useQueryClient()
   const [comment, setComment] = useState('')
@@ -369,11 +497,15 @@ export default function RegularizationPage() {
       </div>
 
       {isAdmin ? (
-        <Tabs defaultValue={isAdmin ? 'pending' : 'my'} className="space-y-4">
+        <Tabs defaultValue={isAdmin ? 'early-checkouts' : 'my'} className="space-y-4">
           <TabsList>
+            {(isOwner || isHR) && <TabsTrigger value="early-checkouts">Early Checkouts</TabsTrigger>}
             {(isOwner || isHR) && <TabsTrigger value="pending">Pending Reviews</TabsTrigger>}
             <TabsTrigger value="my">My Requests</TabsTrigger>
           </TabsList>
+          {(isOwner || isHR) && (
+            <TabsContent value="early-checkouts"><EarlyCheckoutsTab /></TabsContent>
+          )}
           {(isOwner || isHR) && (
             <TabsContent value="pending"><PendingReviewsTab /></TabsContent>
           )}

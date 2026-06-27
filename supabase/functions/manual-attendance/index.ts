@@ -4,9 +4,6 @@ import { getServiceClient } from '../_shared/supabase.ts'
 import { resolveShift } from '../_shared/shift.ts'
 import { isHoliday, isWeeklyOff } from '../_shared/holiday.ts'
 import {
-  computeTotalHours,
-  computeOvertimeFromShift,
-  computeIsLate,
   computeStatus,
   type AttendanceRecordForCompute,
 } from '../_shared/attendance.ts'
@@ -32,26 +29,6 @@ Deno.serve(async (req: Request) => {
     const supabase = getServiceClient()
     const shift = await resolveShift(employee_id, date)
 
-    let totalHours: number | null = null
-    let overtimeHours: number | null = null
-    let isLate = false
-
-    if (check_in_time && check_out_time) {
-      totalHours = computeTotalHours(
-        check_in_time,
-        check_out_time,
-        shift.break_minutes,
-        shift.is_night_shift
-      )
-      overtimeHours = computeOvertimeFromShift(
-        totalHours,
-        shift.start_time,
-        shift.end_time,
-        shift.break_minutes
-      )
-      isLate = computeIsLate(check_in_time, shift.start_time, shift.grace_period_minutes)
-    }
-
     const holidayFlag = await isHoliday(employee_id, date)
     const woffFlag = isWeeklyOff(shift, date)
 
@@ -62,9 +39,8 @@ Deno.serve(async (req: Request) => {
       check_out_time: check_out_time || null,
       is_wfh: is_wfh || false,
       status: 'absent',
-      total_hours: totalHours,
-      overtime_hours: overtimeHours,
-      is_late: isLate,
+      total_hours: null,
+      is_late: false,
       is_manually_entered: true,
     }
 
@@ -84,7 +60,6 @@ Deno.serve(async (req: Request) => {
     if (is_wfh) payload.is_wfh = true
     payload.status = result.status
     payload.total_hours = result.total_hours
-    payload.overtime_hours = result.overtime_hours
     payload.is_late = result.is_late
 
     const { data: record, error } = await supabase

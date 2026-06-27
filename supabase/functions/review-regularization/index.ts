@@ -1,8 +1,6 @@
 import { getActor, assertRole } from '../_shared/auth.ts'
 import { ok, cors, handleError } from '../_shared/response.ts'
 import { getServiceClient } from '../_shared/supabase.ts'
-import { resolveShift } from '../_shared/shift.ts'
-import { computeTotalHours, computeOvertimeFromShift, computeIsLate } from '../_shared/attendance.ts'
 import { createNotification } from '../_shared/notify.ts'
 
 Deno.serve(async (req: Request) => {
@@ -38,48 +36,23 @@ Deno.serve(async (req: Request) => {
     const now = new Date().toISOString()
 
     if (action === 'approve') {
-      const { data: attRecord } = await supabase
-        .from('attendance_records')
-        .select('date')
-        .eq('id', reqRecord.attendance_record_id)
-        .single()
-
-      if (!attRecord) {
-        throw { code: 'NOT_FOUND', message: 'Linked attendance record not found.', status: 404 }
-      }
-
-      const shift = await resolveShift(reqRecord.employee_id, attRecord.date)
-
       const updates: Record<string, unknown> = {}
 
       if (reqRecord.requested_status) {
         updates.status = reqRecord.requested_status
       }
 
-      const checkIn = reqRecord.requested_check_in
-      const checkOut = reqRecord.requested_check_out
-
-      if (checkIn) {
-        updates.check_in_time = checkIn
-        updates.is_late = computeIsLate(checkIn, shift.start_time, shift.grace_period_minutes)
+      if (reqRecord.requested_check_in) {
+        updates.check_in_time = reqRecord.requested_check_in
       }
 
-      if (checkOut) {
-        updates.check_out_time = checkOut
+      if (reqRecord.requested_check_out) {
+        updates.check_out_time = reqRecord.requested_check_out
       }
 
-      if (checkIn && checkOut) {
-        updates.total_hours = computeTotalHours(checkIn, checkOut, shift.break_minutes, shift.is_night_shift)
-        updates.overtime_hours = computeOvertimeFromShift(
-          updates.total_hours as number,
-          shift.start_time,
-          shift.end_time,
-          shift.break_minutes
-        )
-        updates.is_manually_entered = true
-        updates.manual_entry_by = actor.actorId
-        updates.manual_entry_reason = 'Regularized via request'
-      }
+      updates.is_manually_entered = true
+      updates.manual_entry_by = actor.actorId
+      updates.manual_entry_reason = 'Regularized via request'
 
       const { error: attError } = await supabase
         .from('attendance_records')

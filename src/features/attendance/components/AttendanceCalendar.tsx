@@ -87,14 +87,12 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-2">
+          <div className="grid grid-cols-7 border rounded-md overflow-hidden">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-              <div key={d} className="py-1">{d}</div>
+              <div key={d} className="border-b border-r bg-muted/50 px-1 py-1.5 text-center text-xs font-medium text-muted-foreground">{d}</div>
             ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-              <div key={`empty-${i}`} />
+              <div key={`empty-${i}`} className="border-b border-r aspect-square" />
             ))}
             {days.map((day) => {
               const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -105,20 +103,7 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
               const isWeeklyOff = !rawStatus && !isHoliday && weeklyOffDays.includes(dayOfWeek)
               const status = isWeeklyOff ? 'weekly_off' : (isHoliday ? 'holiday' : (rawStatus ?? (showAll ? 'absent' : null)))
 
-              if (!status) return <div key={day} className="aspect-square" />
-
-              return (isHoliday || isWeeklyOff) ? (
-                <div
-                  key={day}
-                  className={cn(
-                    'aspect-square rounded-md text-xs flex items-center justify-center text-white font-medium',
-                    STATUS_COLORS[isWeeklyOff ? 'weekly_off' : 'holiday']
-                  )}
-                  title={isWeeklyOff ? 'Weekly Off' : 'Holiday'}
-                >
-                  {day}
-                </div>
-              ) : (
+              return (
                 <button
                   key={day}
                   onClick={() => setSelectedDay(record ?? {
@@ -148,15 +133,20 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
                     updated_at: '',
                   } as AttendanceRecord)}
                   className={cn(
-                    'aspect-square rounded-md text-xs flex items-center justify-center text-white font-medium transition-colors',
-                    STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-400'
+                    'aspect-square border-b border-r flex items-center justify-center text-xs font-medium transition-colors',
+                    status ? STATUS_COLORS[status] : 'hover:bg-accent'
                   )}
-                  title={status}
+                  title={status ? getAttendanceStatusLabel(status as AttendanceStatus) : dateStr}
                 >
-                  {day}
+                  <span className="text-foreground">
+                    {day}
+                  </span>
                 </button>
               )
             })}
+            {Array.from({ length: (7 - (firstDayOfWeek + daysInMonth) % 7) % 7 }).map((_, i) => (
+              <div key={`trailing-${i}`} className="border-b border-r aspect-square" />
+            ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {(Object.keys(STATUS_COLORS) as AttendanceStatus[]).map((s) => (
@@ -197,14 +187,10 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="rounded border p-2">
                   <p className="text-xs text-muted-foreground">Total Hours</p>
                   <p className="font-medium">{formatHours(selectedDay.total_hours)}</p>
-                </div>
-                <div className="rounded border p-2">
-                  <p className="text-xs text-muted-foreground">Overtime</p>
-                  <p className="font-medium">{formatHours(selectedDay.overtime_hours)}</p>
                 </div>
                 <div className="rounded border p-2">
                   <p className="text-xs text-muted-foreground">Late</p>

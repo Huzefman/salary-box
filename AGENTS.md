@@ -21,11 +21,11 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-23
+Last updated: 2026-06-27
 Active branch: experiment-new-agent
-Current session: All 15 cron functions scheduled via pg_cron + pg_net; weekly off
-days (Sundays) now render gray in all calendar/attendance views. Remaining items:
-fix migration naming conflict, configure Resend, re-seed reference data.
+Current session: Attendance business rules overhaul — grace period removed, half-day
+at 10:21, early checkout reason + approval flow, overtime removed entirely, auto-checkout
+shift-aware (end+buffer), no-checkout → absent.
 
 ### M2 — Complete Feature Set
 - **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header
@@ -40,10 +40,13 @@ fix migration naming conflict, configure Resend, re-seed reference data.
 - **Profile Edit Requests:** Full self-service flow with approve/reject
 
 ### M3 Phase 1 — Attendance Backend
-- **4 shared utilities:** `geo.ts`, `ip.ts`, `holiday.ts`, `attendance.ts`
+- **5 shared utilities:** `geo.ts`, `ip.ts`, `holiday.ts`, `attendance.ts`, `shift.ts`
 - **10 Edge Functions deployed:** check-in, check-out, log-wfh, auto-checkout,
   compute-attendance-status, manual-attendance, submit-regularization,
   review-regularization, late-mark-deduction, incomplete-attendance-reminder
+- **`_shared/attendance.ts`** rewritten: no overtime, `computeTotalHours` accepts
+  `capAt`, `computeStatus` half-day = check-in ≥20min after shift start,
+  no-checkout → absent
 
 ### M3 Phase 2 — Regularization & Notifications
 - `submit-regularization`, `review-regularization` Edge Functions
@@ -173,6 +176,28 @@ fix migration naming conflict, configure Resend, re-seed reference data.
   `weekly_off_days` and mark Sundays as `weekly_off` (gray) instead of hiding them
   or showing as absent. Applied to employee calendar, team grid, and self-report.
 
+### This session — Attendance Business Rules Overhaul
+- **Grace period removed**: Any check-in after 10:00 is late (was 20min grace).
+- **Half-day deadline**: Check-in ≥10:21 → `half_day` status (was based on hours worked).
+- **Early checkout**: Check-out before shift end requires `early_checkout_reason` (400 if missing).
+  HR/Owner can approve (keep status) or reject (set `absent`).
+- **Overtime removed entirely**: `computeOvertime`/`computeOvertimeFromShift` deleted.
+  `total_hours` capped at shift end via `capAt` parameter in `computeTotalHours`.
+- **Auto-checkout shift-aware**: Resolves each employee's shift, sets check-out at
+  end time + buffer (30min default from `app_config` key `auto_checkout_buffer_minutes`).
+  Status = `absent` (not `incomplete`).
+- **No checkout → absent**: `computeStatus` returns `absent` when `check_out_time` is null
+  (was `incomplete`). Still regularizable.
+- **Migration `0016_early_checkout.sql`**: Adds `early_checkout_reason` (text) and
+  `early_checkout_status` (text, check: pending/approved/rejected) to `attendance_records`.
+- **Early Checkouts tab**: New tab in `RegularizationPage` — lists pending early checkouts
+  with approve/reject buttons. Approve keeps status; reject sets `absent`.
+- **Late count warning**: `CheckInOutCard` shows warning banner when approaching
+  late threshold (`late_count_this_month` / `late_threshold`).
+- **6 EFs redeployed**: `check-in`, `check-out`, `auto-checkout`, `compute-attendance-status`,
+  `manual-attendance`, `review-regularization` — all with updated business rules.
+- **Typecheck + lint clean**: `database.types.ts` regenerated via `supabase gen types`.
+
 ### Remaining items
 1. Configure `RESEND_API_KEY` in Supabase project secrets for transactional emails
 2. Fix migration naming conflict (`0010_*` duplication) — run `supabase migration repair`
@@ -221,7 +246,8 @@ the `mcp__supabase__*` tools give direct access to project
 - `execute_sql` — ad-hoc queries for inspection/debugging only. Don't use it
   for schema changes that should be migrations.
 - `generate_typescript_types` — regenerate `src/types/database.types.ts`
-  after schema changes.
+  after schema changes. (Use `npx supabase gen types typescript --project-id <id> > src/types/database.types.ts`
+  locally since CLI isn't installed; or use `npm run types:gen`.)
 
 If the MCP server isn't connected in a session, say so and fall back to
 writing the migration SQL for the user to apply.

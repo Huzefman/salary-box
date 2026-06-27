@@ -157,14 +157,14 @@ export default function TeamAttendancePage() {
           <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="sticky left-0 bg-muted/50 z-10 text-left p-2 font-medium min-w-[140px]">Employee</th>
+                <th className="sticky left-0 bg-muted/50 z-10 text-left p-2 font-medium min-w-[140px] border-r border-b">Employee</th>
                 {Array.from({ length: daysInMonth }, (_, i) => (
-                  <th key={i} className="p-1.5 text-center font-medium w-8 sm:w-10">{i + 1}</th>
+                  <th key={i} className="p-1.5 text-center font-medium w-8 sm:w-10 border-r border-b">{i + 1}</th>
                 ))}
-                <th className="p-1.5 text-center font-medium text-green-600 min-w-[60px]">P</th>
-                <th className="p-1.5 text-center font-medium text-red-600 min-w-[60px]">A</th>
-                <th className="p-1.5 text-center font-medium text-yellow-600 min-w-[60px]">L</th>
-                <th className="p-1.5 text-center font-medium text-blue-600 min-w-[60px]">WFH</th>
+                <th className="p-1.5 text-center font-medium text-green-600 min-w-[60px] border-b">P</th>
+                <th className="p-1.5 text-center font-medium text-red-600 min-w-[60px] border-b">A</th>
+                <th className="p-1.5 text-center font-medium text-yellow-600 min-w-[60px] border-b">L</th>
+                <th className="p-1.5 text-center font-medium text-blue-600 min-w-[60px] border-b">WFH</th>
               </tr>
             </thead>
             <tbody>
@@ -172,7 +172,7 @@ export default function TeamAttendancePage() {
                 const summary = getSummary(emp.id)
                 return (
                   <tr key={emp.id} className="border-b hover:bg-accent/30 cursor-pointer" onClick={() => navigate(`/attendance/${emp.id}`)}>
-                    <td className="sticky left-0 bg-background z-10 p-2">
+                    <td className="sticky left-0 bg-background z-10 p-2 border-r border-b">
                       <div className="flex items-center gap-2">
                         <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <div className="truncate">
@@ -189,7 +189,7 @@ export default function TeamAttendancePage() {
                       const dayOfWeek = new Date(year, month - 1, i + 1).getDay()
                       const isWeeklyOff = !status && !isHoliday && (data?.weeklyOffDays ?? [0]).includes(dayOfWeek)
                       return (
-                        <td key={i} className="p-1 text-center">
+                        <td key={i} className="p-1 text-center border-r border-b">
                           {status && status in STATUS_CLASSES ? (
                             <span className={cn('inline-block h-5 w-5 sm:h-6 sm:w-6 rounded-sm', STATUS_CLASSES[status])} title={getAttendanceStatusLabel(status as AttendanceRecord['status'])} />
                           ) : isHoliday ? (
@@ -202,10 +202,10 @@ export default function TeamAttendancePage() {
                         </td>
                       )
                     })}
-                    <td className="p-1.5 text-center font-medium text-green-700">{summary.present}</td>
-                    <td className="p-1.5 text-center font-medium text-red-700">{summary.absent}</td>
-                    <td className="p-1.5 text-center font-medium text-yellow-700">{summary.late}</td>
-                    <td className="p-1.5 text-center font-medium text-blue-700">{summary.wfh}</td>
+                    <td className="p-1.5 text-center font-medium text-green-700 border-b">{summary.present}</td>
+                    <td className="p-1.5 text-center font-medium text-red-700 border-b">{summary.absent}</td>
+                    <td className="p-1.5 text-center font-medium text-yellow-700 border-b">{summary.late}</td>
+                    <td className="p-1.5 text-center font-medium text-blue-700 border-b">{summary.wfh}</td>
                   </tr>
                 )
               })}

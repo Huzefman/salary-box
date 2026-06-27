@@ -48,11 +48,11 @@ export default function ReportsAttendancePage() {
 
   function exportCSV() {
     if (!report) return
-    const headers = ['Employee', 'Code', 'Department', 'Present', 'WFH', 'Absent', 'On Leave', 'Half Day', 'Late Marks', 'Overtime (hrs)']
+    const headers = ['Employee', 'Code', 'Department', 'Present', 'WFH', 'Absent', 'On Leave', 'Half Day', 'Late Marks']
     const rows = report.map((r) => [
       r.employeeName, r.employeeCode, r.departmentName ?? '',
       String(r.presentDays), String(r.wfhDays), String(r.absentDays),
-      String(r.onLeaveDays), String(r.halfDayDays), String(r.lateMarks), String(r.overtimeHours),
+      String(r.onLeaveDays), String(r.halfDayDays), String(r.lateMarks),
     ])
     downloadCSV(headers, rows, `attendance-report-${monthName}-${year}.csv`)
   }
@@ -201,7 +201,6 @@ export default function ReportsAttendancePage() {
                     <TableHead className="text-center text-purple-700">On Leave</TableHead>
                     <TableHead className="text-center text-orange-700">Half Day</TableHead>
                     <TableHead className="text-center text-yellow-700">Late</TableHead>
-                    <TableHead className="text-center">Overtime</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -216,7 +215,6 @@ export default function ReportsAttendancePage() {
                       <TableCell className="text-center font-medium text-purple-700">{r.onLeaveDays}</TableCell>
                       <TableCell className="text-center font-medium text-orange-700">{r.halfDayDays}</TableCell>
                       <TableCell className="text-center font-medium text-yellow-700">{r.lateMarks}</TableCell>
-                      <TableCell className="text-center">{r.overtimeHours.toFixed(1)}</TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="font-semibold bg-muted/50">
@@ -227,7 +225,6 @@ export default function ReportsAttendancePage() {
                     <TableCell className="text-center">{report.reduce((s, r) => s + r.onLeaveDays, 0)}</TableCell>
                     <TableCell className="text-center">{report.reduce((s, r) => s + r.halfDayDays, 0)}</TableCell>
                     <TableCell className="text-center">{report.reduce((s, r) => s + r.lateMarks, 0)}</TableCell>
-                    <TableCell className="text-center">{report.reduce((s, r) => s + r.overtimeHours, 0).toFixed(1)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
