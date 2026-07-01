@@ -1444,6 +1444,10 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      get_employee_name: {
+        Args: { p_id: string }
+        Returns: { id: string; first_name: string; last_name: string }
+      }
       uuid_generate_v5: {
         Args: { name: string; namespace: string }
         Returns: string

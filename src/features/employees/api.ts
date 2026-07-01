@@ -12,21 +12,15 @@ import type {
   AuditLog,
 } from '@/types'
 
-async function attachReportingManager(employees: unknown[]): Promise<EmployeeWithRelations[]> {
-  const result = employees as EmployeeWithRelations[]
-  for (const emp of result) {
-    if (emp.reporting_manager_id) {
-      const { data: mgr } = await supabase
-        .from('employees')
-        .select('id, first_name, last_name')
-        .eq('id', emp.reporting_manager_id)
-        .maybeSingle()
-      emp.reporting_manager = mgr
-    } else {
-      emp.reporting_manager = null
-    }
+async function fetchManagerName(emp: EmployeeWithRelations): Promise<void> {
+  if (emp.reporting_manager_id) {
+    const { data } = await supabase
+      .rpc('get_employee_name', { p_id: emp.reporting_manager_id })
+      .maybeSingle()
+    emp.reporting_manager = data ?? null
+  } else {
+    emp.reporting_manager = null
   }
-  return result
 }
 
 export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
@@ -40,7 +34,7 @@ export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
     .eq('is_active', true)
     .order('first_name')
   if (error) throw error
-  return attachReportingManager(data ?? [])
+  return data as unknown as EmployeeWithRelations[]
 }
 
 export async function fetchEmployee(id: string): Promise<EmployeeWithRelations | null> {
@@ -55,8 +49,9 @@ export async function fetchEmployee(id: string): Promise<EmployeeWithRelations |
     .maybeSingle()
   if (error) throw error
   if (!data) return null
-  const [enriched] = await attachReportingManager([data])
-  return enriched
+  const emp = data as unknown as EmployeeWithRelations
+  await fetchManagerName(emp)
+  return emp
 }
 
 export async function fetchDepartments() {

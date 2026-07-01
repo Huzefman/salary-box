@@ -150,6 +150,7 @@ function HRDashboard() {
 
   const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false)
   const [earlyCheckoutReason, setEarlyCheckoutReason] = useState('')
+  const [wfhDialogOpen, setWfhDialogOpen] = useState(false)
 
   const handleCheckIn = async () => {
     try {
@@ -188,9 +189,12 @@ function HRDashboard() {
     }
   }
 
-  const handleLogWFH = async () => {
+  const handleLogWFHClick = () => setWfhDialogOpen(true)
+
+  const handleLogWFHConfirm = async () => {
     try {
       await logWFH.mutateAsync()
+      setWfhDialogOpen(false)
       toast.success('WFH logged for today')
       refetch()
     } catch (e: unknown) {
@@ -234,7 +238,7 @@ function HRDashboard() {
             {checkOut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
             Check Out
           </Button>
-          <Button size="lg" variant="secondary" disabled={checkedIn || isWFH || logWFH.isPending} onClick={handleLogWFH}>
+          <Button size="lg" variant="secondary" disabled={checkedIn || isWFH || logWFH.isPending} onClick={handleLogWFHClick}>
             {logWFH.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Home className="mr-2 h-4 w-4" />}
             {isWFH ? 'WFH Logged' : 'Log WFH'}
           </Button>
@@ -283,6 +287,20 @@ function HRDashboard() {
         </Card>
       </div>
 
+      <Dialog open={wfhDialogOpen} onOpenChange={setWfhDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log Work From Home</DialogTitle>
+            <DialogDescription>
+              Are you working from home today? This will mark your entire day as WFH.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWfhDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleLogWFHConfirm}>Confirm WFH</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={earlyCheckoutOpen} onOpenChange={setEarlyCheckoutOpen}>
         <DialogContent>
           <DialogHeader>
@@ -321,6 +339,7 @@ function EmployeeDashboardView() {
 
   const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false)
   const [earlyCheckoutReason, setEarlyCheckoutReason] = useState('')
+  const [wfhDialogOpen, setWfhDialogOpen] = useState(false)
 
   const handleCheckIn = async () => {
     try {
@@ -359,9 +378,12 @@ function EmployeeDashboardView() {
     }
   }
 
-  const handleLogWFH = async () => {
+  const handleLogWFHClick = () => setWfhDialogOpen(true)
+
+  const handleLogWFHConfirm = async () => {
     try {
       await logWFH.mutateAsync()
+      setWfhDialogOpen(false)
       toast.success('WFH logged for today')
       refetch()
     } catch (e: unknown) {
@@ -419,7 +441,7 @@ function EmployeeDashboardView() {
             size="lg"
             variant="secondary"
             disabled={checkedIn || isWFH || logWFH.isPending}
-            onClick={handleLogWFH}
+            onClick={handleLogWFHClick}
           >
             {logWFH.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Home className="mr-2 h-4 w-4" />}
             {isWFH ? 'WFH Logged' : 'Log WFH'}
@@ -447,7 +469,7 @@ function EmployeeDashboardView() {
             </CardContent>
           </Card>
         ))}
-        <Link to="/leave" className="flex items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+        <Link to="/leave/apply" className="flex items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
           Apply for leave <ArrowRight className="ml-1 h-3 w-3" />
         </Link>
       </div>
@@ -477,6 +499,22 @@ function EmployeeDashboardView() {
           </CardContent>
         </Card>
       )}
+
+      {/* WFH confirmation dialog */}
+      <Dialog open={wfhDialogOpen} onOpenChange={setWfhDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log Work From Home</DialogTitle>
+            <DialogDescription>
+              Are you working from home today? This will mark your entire day as WFH.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWfhDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleLogWFHConfirm}>Confirm WFH</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Early checkout dialog */}
       <Dialog open={earlyCheckoutOpen} onOpenChange={setEarlyCheckoutOpen}>

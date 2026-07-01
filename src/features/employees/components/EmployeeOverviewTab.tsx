@@ -43,6 +43,11 @@ export function EmployeeOverviewTab({ employee }: Props) {
   const currentEmployee = useAuthStore((s) => s.employee)
   const isOwnProfile = currentEmployee?.id === employee.id
   const canEdit = isOwner || isHR || isOwnProfile
+  const reportingManagerName = (() => {
+    const rm = employee.reporting_manager
+    if (!rm || Array.isArray(rm) || !rm.first_name) return null
+    return `${rm.first_name} ${rm.last_name ?? ''}`.trim()
+  })()
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
   const submitEdit = useSubmitProfileEdit()
@@ -117,7 +122,7 @@ export function EmployeeOverviewTab({ employee }: Props) {
             <Separator />
             <div className="flex justify-between">
               <span className="text-muted-foreground">Reporting Manager</span>
-              <span className="text-right">{employee.reporting_manager?.first_name ? `${employee.reporting_manager.first_name} ${employee.reporting_manager.last_name ?? ''}` : '—'}</span>
+              <span className="text-right">{reportingManagerName ?? '—'}</span>
             </div>
             <Separator />
             <div className="flex justify-between">
