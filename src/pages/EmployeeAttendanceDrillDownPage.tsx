@@ -66,7 +66,18 @@ export default function EmployeeAttendanceDrillDownPage() {
       toast.error('Provide at least check-in, check-out, or mark WFH')
       return
     }
-    manualMutation.mutate(values)
+    // Convert datetime-local values (local time, no timezone) to UTC ISO strings
+    // so timestamptz columns store the correct absolute time
+    const payload = {
+      ...values,
+      check_in_time: values.check_in_time
+        ? new Date(values.check_in_time).toISOString()
+        : undefined,
+      check_out_time: values.check_out_time
+        ? new Date(values.check_out_time).toISOString()
+        : undefined,
+    }
+    manualMutation.mutate(payload)
   }
 
   if (empLoading || recLoading) {

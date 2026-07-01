@@ -126,7 +126,18 @@ function NewRequestDialog() {
 
   const onSubmit = async (values: SubmitRegularizationForm) => {
     try {
-      await submitReg.mutateAsync(values)
+      // Convert datetime-local values (local time, no timezone) to UTC ISO strings
+      // so timestamptz columns store the correct absolute time
+      const payload = {
+        ...values,
+        requested_check_in: values.requested_check_in
+          ? new Date(values.requested_check_in).toISOString()
+          : undefined,
+        requested_check_out: values.requested_check_out
+          ? new Date(values.requested_check_out).toISOString()
+          : undefined,
+      }
+      await submitReg.mutateAsync(payload)
       toast.success('Regularization request submitted')
       form.reset()
       setSelectedDate('')
