@@ -36,8 +36,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMonth }: Props) {
   const [selectedDay, setSelectedDay] = useState<AttendanceRecord | null>(null)
-  const [showAll, setShowAll] = useState(false)
-
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set())
   const [weeklyOffDays, setWeeklyOffDays] = useState<number[]>([0])
 
@@ -79,7 +77,6 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
               <Button variant="ghost" size="icon" onClick={onPrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              {!showAll && <Button variant="ghost" size="icon" onClick={() => setShowAll(true)}>All</Button>}
               <Button variant="ghost" size="icon" onClick={onNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -101,7 +98,7 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
               const dayOfWeek = new Date(year, month - 1, day).getDay()
               const isHoliday = !rawStatus && holidayDates.has(dateStr)
               const isWeeklyOff = !rawStatus && !isHoliday && weeklyOffDays.includes(dayOfWeek)
-              const status = isWeeklyOff ? 'weekly_off' : (isHoliday ? 'holiday' : (rawStatus ?? (showAll ? 'absent' : null)))
+              const status = isWeeklyOff ? 'weekly_off' : (isHoliday ? 'holiday' : (rawStatus ?? null))
 
               return (
                 <button

@@ -87,11 +87,16 @@ export default function ReportsAttendancePage() {
   }
 
   if (isEmployee) {
-    const present = selfReport?.filter((r) => r.status === 'present').length ?? 0
-    const wfh = selfReport?.filter((r) => r.status === 'work_from_home' || r.isWfh).length ?? 0
-    const absent = selfReport?.filter((r) => r.status === 'absent').length ?? 0
-    const onLeave = selfReport?.filter((r) => r.status === 'on_leave').length ?? 0
-    const late = selfReport?.filter((r) => r.isLate).length ?? 0
+    const todayStr = new Date().toISOString().split('T')[0]
+    const pastReport = (selfReport ?? []).filter((r) => r.date <= todayStr)
+    const present = pastReport.filter((r) => r.status === 'present').length
+    const wfh = pastReport.filter((r) => r.status === 'work_from_home' || r.isWfh).length
+    const absent = pastReport.filter((r) => r.status === 'absent').length
+    const halfDay = pastReport.filter((r) => r.status === 'half_day').length
+    const onLeave = pastReport.filter((r) => r.status === 'on_leave').length
+    const late = pastReport.filter((r) => r.isLate).length
+    const holiday = pastReport.filter((r) => r.status === 'holiday').length
+    const weeklyOff = pastReport.filter((r) => r.status === 'weekly_off').length
 
     return (
       <div className="space-y-6">
@@ -113,13 +118,16 @@ export default function ReportsAttendancePage() {
           <Card><CardContent className="py-8 text-center text-muted-foreground">No data available.</CardContent></Card>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
               {[
                 { label: 'Present', count: present, cls: 'text-green-700 bg-green-50' },
                 { label: 'WFH', count: wfh, cls: 'text-blue-700 bg-blue-50' },
                 { label: 'Absent', count: absent, cls: 'text-red-700 bg-red-50' },
+                { label: 'Half Day', count: halfDay, cls: 'text-orange-700 bg-orange-50' },
                 { label: 'On Leave', count: onLeave, cls: 'text-purple-700 bg-purple-50' },
                 { label: 'Late', count: late, cls: 'text-yellow-700 bg-yellow-50' },
+                { label: 'Holiday', count: holiday, cls: 'text-gray-500 bg-gray-100' },
+                { label: 'Weekly Off', count: weeklyOff, cls: 'text-gray-400 bg-gray-50' },
               ].map((item) => (
                 <div key={item.label} className={`rounded-lg border p-3 text-center ${item.cls}`}>
                   <p className="text-xl font-bold">{item.count}</p>
@@ -145,12 +153,14 @@ export default function ReportsAttendancePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selfReport.map((r) => (
-                        <TableRow key={r.date}>
+                      {selfReport.map((r) => {
+                        const isFuture = r.date > todayStr
+                        return (
+                        <TableRow key={r.date} className={isFuture ? 'opacity-50' : ''}>
                           <TableCell className="font-mono text-xs">{r.date}</TableCell>
                           <TableCell>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][r.dayOfWeek]}</TableCell>
                           <TableCell>
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_CLASS[r.status] ?? 'text-gray-500'}`}>
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${isFuture ? 'text-gray-300' : (STATUS_CLASS[r.status] ?? 'text-gray-500')}`}>
                               {r.status.replace(/_/g, ' ')}
                             </span>
                           </TableCell>
@@ -160,8 +170,9 @@ export default function ReportsAttendancePage() {
                           <TableCell>{r.isLate ? 'Yes' : 'No'}</TableCell>
                           <TableCell>{r.isWfh ? 'Yes' : 'No'}</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
+                      )
+                  })}
+                  </TableBody>
                   </Table>
                 </div>
               </CardContent>

@@ -51,16 +51,16 @@ export function EmployeeOverviewTab({ employee }: Props) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <Avatar className="h-16 w-16 shrink-0">
                 <AvatarImage src={employee.photo_url ?? undefined} />
                 <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
-              <div>
-                <CardTitle className="text-xl">{getEmployeeFullName(employee)}</CardTitle>
+              <div className="min-w-0">
+                <CardTitle className="text-xl truncate">{getEmployeeFullName(employee)}</CardTitle>
                 <p className="text-sm text-muted-foreground">{employee.employee_code}</p>
-                <div className="mt-1 flex gap-2">
+                <div className="mt-1 flex gap-2 flex-wrap">
                   <Badge variant={statusVariant(employee.employment_status)}>
                     {getEmploymentStatusLabel(employee.employment_status)}
                   </Badge>
@@ -68,16 +68,18 @@ export function EmployeeOverviewTab({ employee }: Props) {
                 </div>
               </div>
             </div>
-            {canEdit && (isOwner || isHR) && (
-              <Link to={`/employees/${employee.id}/edit`}>
-                <Button size="sm" variant="outline"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
-              </Link>
-            )}
-            {canEdit && role === 'employee' && isOwnProfile && (
-              <Button size="sm" variant="outline" onClick={() => { setEditFields({}); setEditDialogOpen(true) }}>
-                <SendHorizonal className="mr-2 h-4 w-4" />Request Edit
-              </Button>
-            )}
+            <div className="flex gap-2 shrink-0">
+              {canEdit && (isOwner || isHR) && (
+                <Link to={`/employees/${employee.id}/edit`}>
+                  <Button size="sm" variant="outline" className="w-full sm:w-auto"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
+                </Link>
+              )}
+              {canEdit && role === 'employee' && isOwnProfile && (
+                <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => { setEditFields({}); setEditDialogOpen(true) }}>
+                  <SendHorizonal className="mr-2 h-4 w-4" />Request Edit
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
       </Card>
@@ -115,7 +117,7 @@ export function EmployeeOverviewTab({ employee }: Props) {
             <Separator />
             <div className="flex justify-between">
               <span className="text-muted-foreground">Reporting Manager</span>
-              <span>{employee.reporting_manager?.first_name ? `${employee.reporting_manager.first_name} ${employee.reporting_manager.last_name ?? ''}` : '—'}</span>
+              <span className="text-right">{employee.reporting_manager?.first_name ? `${employee.reporting_manager.first_name} ${employee.reporting_manager.last_name ?? ''}` : '—'}</span>
             </div>
             <Separator />
             <div className="flex justify-between">
