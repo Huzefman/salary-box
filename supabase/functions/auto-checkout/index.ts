@@ -22,7 +22,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: incomplete } = await supabase
       .from('attendance_records')
-      .select('id, employee_id, check_in_time, shift_id, employees!attendance_records_employee_id_fkey(email)')
+      .select('id, employee_id, check_in_time, shift_id, status, employees!attendance_records_employee_id_fkey(email)')
       .eq('date', today)
       .not('check_in_time', 'is', null)
       .is('check_out_time', null)
@@ -52,13 +52,15 @@ Deno.serve(async (req: Request) => {
             )
           : null
 
+        const updates: Record<string, unknown> = {
+          check_out_time: autoCheckoutIso,
+          status: 'absent',
+          total_hours: totalHours,
+        }
+
         const { error: updateError } = await supabase
           .from('attendance_records')
-          .update({
-            check_out_time: autoCheckoutIso,
-            status: 'half_day',
-            total_hours: totalHours,
-          })
+          .update(updates)
           .eq('id', record.id)
 
         if (!updateError) {
@@ -66,8 +68,8 @@ Deno.serve(async (req: Request) => {
           const empEmail = (record.employees as unknown as { email: string }).email
           await createNotification({
             recipientId: record.employee_id,
-            title: 'Attendance Auto-Checked Out',
-            body: `Your attendance for ${today} was auto-checked out as half-day. Please submit a regularization request if you were present for the full day.`,
+            title: 'Incomplete Attendance',
+            body: `Your attendance for ${today} was marked as absent due to incomplete check-out. Please submit a regularization request.`,
             type: 'attendance_incomplete',
             referenceId: record.id,
             referenceTable: 'attendance_records',
@@ -75,11 +77,11 @@ Deno.serve(async (req: Request) => {
           try {
             await sendEmail({
               to: empEmail,
-              subject: 'Attendance Auto-Checked Out',
+              subject: 'Incomplete Attendance — Marked Absent',
               html: `
-                <h2>Attendance Auto-Checked Out</h2>
+                <h2>Incomplete Attendance</h2>
                 <p>Your attendance for <strong>${today}</strong> was auto-checked out as you did not check out on time.</p>
-                <p>Your status has been marked as <strong>half-day</strong>. Please submit a regularization request if you were present for the full day.</p>
+                <p>Your status has been marked as <strong>absent (incomplete attendance)</strong>. Please submit a regularization request if you were present.</p>
                 <hr />
                 <p style="color: #666; font-size: 12px;">This is an automated message from the HR system.</p>
               `,

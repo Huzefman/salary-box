@@ -12,19 +12,35 @@ import type {
   AuditLog,
 } from '@/types'
 
+async function attachReportingManager(employees: unknown[]): Promise<EmployeeWithRelations[]> {
+  const result = employees as EmployeeWithRelations[]
+  for (const emp of result) {
+    if (emp.reporting_manager_id) {
+      const { data: mgr } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name')
+        .eq('id', emp.reporting_manager_id)
+        .maybeSingle()
+      emp.reporting_manager = mgr
+    } else {
+      emp.reporting_manager = null
+    }
+  }
+  return result
+}
+
 export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
   const { data, error } = await supabase
     .from('employees')
     .select(`
       *,
       department:departments!department_id(id, name),
-      designation:designations!designation_id(id, name),
-      reporting_manager:employees!reporting_manager_id(id, first_name, last_name)
+      designation:designations!designation_id(id, name)
     `)
     .eq('is_active', true)
     .order('first_name')
   if (error) throw error
-  return data as unknown as EmployeeWithRelations[]
+  return attachReportingManager(data ?? [])
 }
 
 export async function fetchEmployee(id: string): Promise<EmployeeWithRelations | null> {
@@ -33,13 +49,14 @@ export async function fetchEmployee(id: string): Promise<EmployeeWithRelations |
     .select(`
       *,
       department:departments!department_id(id, name),
-      designation:designations!designation_id(id, name),
-      reporting_manager:employees!reporting_manager_id(id, first_name, last_name)
+      designation:designations!designation_id(id, name)
     `)
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
-  return data as unknown as EmployeeWithRelations | null
+  if (!data) return null
+  const [enriched] = await attachReportingManager([data])
+  return enriched
 }
 
 export async function fetchDepartments() {

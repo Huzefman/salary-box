@@ -41,18 +41,25 @@ Deno.serve(async (req: Request) => {
 
     const now = new Date().toISOString()
 
-    // BR-ATT-06: Late if check-in > shift start (no grace)
+    // Late if check-in > shift start (no grace)
     const isLate = computeIsLate(now, shift.start_time, 0)
 
-    // Half-day if check-in > shift start + grace_period_minutes
+    // Determine status from minutes past shift start:
+    //   0–5 min → present + late        (keep null, computeStatus sets present)
+    //   5–20 min → half_day + late
+    //   >20 min → absent + late
     let status: string | null = null
     if (isLate) {
       const checkInDate = new Date(now)
       const [sh, sm] = shift.start_time.split(':').map(Number)
-      const halfDayCutoff = new Date(now)
-      halfDayCutoff.setHours(sh, sm + shift.grace_period_minutes, 0, 0)
-      if (checkInDate.getTime() > halfDayCutoff.getTime()) {
+      const shiftStartToday = new Date(now)
+      shiftStartToday.setHours(sh, sm, 0, 0)
+      const diffMin = (checkInDate.getTime() - shiftStartToday.getTime()) / (1000 * 60)
+
+      if (diffMin > 5 && diffMin <= 20) {
         status = 'half_day'
+      } else if (diffMin > 20) {
+        status = 'absent'
       }
     }
 

@@ -115,7 +115,7 @@ export function EmployeeOverviewTab({ employee }: Props) {
             <Separator />
             <div className="flex justify-between">
               <span className="text-muted-foreground">Reporting Manager</span>
-              <span>{employee.reporting_manager ? `${employee.reporting_manager.first_name} ${employee.reporting_manager.last_name}` : '—'}</span>
+              <span>{employee.reporting_manager?.first_name ? `${employee.reporting_manager.first_name} ${employee.reporting_manager.last_name ?? ''}` : '—'}</span>
             </div>
             <Separator />
             <div className="flex justify-between">
