@@ -53,3 +53,20 @@ export function useConfirmLeaveCancellation() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['leave'] }),
   })
 }
+export function useOptInHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { holiday_id: string }) =>
+      callEdgeFunction('opt-in-holiday', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leave'] }),
+  })
+}
+
+export function useOptOutHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { holiday_id: string }) =>
+      callEdgeFunction('opt-out-holiday', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leave'] }),
+  })
+}

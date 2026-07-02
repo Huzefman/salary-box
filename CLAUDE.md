@@ -261,8 +261,8 @@ Build in this order. Each milestone must be complete before the next.
 |---|---|
 | M1 | Supabase project setup, all migrations, RLS policies, auth flow (login/set-password), RBAC + role detection, department/designation CRUD, employee CRUD (P0 fields), sidebar shell |
 | M2 | Full employee module: list, add/edit form, document vault, lifecycle events, bulk import, activity timeline, org chart (P2) |
-| M3 | Attendance module: check-in/out Edge Functions, WFH logging, team calendar, manual entry, regularization flow, shift management — **Phase 1-3 done (10 Edge Functions deployed + employee self-service frontend), Phase 4-5 pending** |
-| M4 | Leave module: leave types config, holiday calendar + optional opt-in, leave application flow, comp-off flow, balance tracking |
+| M3 | Attendance module: check-in/out Edge Functions, WFH logging, team calendar, manual entry, regularization flow, shift management — **complete (10 Edge Functions deployed, all frontend + admin pages built, IP whitelist + geofence + geolocation wired)** |
+| M4 | Leave module: leave types config, holiday calendar + optional opt-in, leave application flow, comp-off flow, balance tracking — **complete (16 Edge Functions implemented, 12 components, 8 pages wired)** |
 | M5 | Reports, all notifications wired (email + in-app), mobile responsiveness, UAT polish |
 
 ---

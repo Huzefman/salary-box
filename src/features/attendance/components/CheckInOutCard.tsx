@@ -1,10 +1,20 @@
+import { useState } from 'react'
 import { useTodayAttendance } from '../hooks'
 import { useCheckIn, useCheckOut, useLogWFH } from '../mutations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, Clock, LogOut, Home } from 'lucide-react'
+import { Loader2, Clock, LogOut, Home, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatHours } from '../utils'
+import { formatHours, getCurrentPosition } from '../utils'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 
 export function CheckInOutCard() {
   const { data: today, isLoading, refetch } = useTodayAttendance()
@@ -12,10 +22,24 @@ export function CheckInOutCard() {
   const checkOut = useCheckOut()
   const logWFH = useLogWFH()
 
+  const [lateWarning, setLateWarning] = useState<{ count: number; threshold: number } | null>(null)
+  const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false)
+  const [earlyCheckoutReason, setEarlyCheckoutReason] = useState('')
+
   const handleCheckIn = async () => {
     try {
-      const result = await checkIn.mutateAsync({})
+      const coords = await getCurrentPosition()
+      const result = await checkIn.mutateAsync(coords)
       toast.success(result.is_late ? 'Checked in — late' : 'Checked in successfully')
+      if (result.status === 'half_day') {
+        toast.info('Marked as half-day (check-in after 10:20)')
+      }
+      if (result.late_count_this_month != null && result.late_threshold != null) {
+        const remaining = result.late_threshold - (result.late_count_this_month - 1)
+        if (remaining <= 1) {
+          setLateWarning({ count: result.late_count_this_month, threshold: result.late_threshold })
+        }
+      }
       refetch()
     } catch (e: unknown) {
       const err = e as { message?: string }
@@ -23,9 +47,23 @@ export function CheckInOutCard() {
     }
   }
 
-  const handleCheckOut = async () => {
+  const handleCheckOutClick = () => {
+    setEarlyCheckoutReason('')
+    setEarlyCheckoutOpen(true)
+  }
+
+  const handleCheckOutConfirm = async () => {
     try {
-      const result = await checkOut.mutateAsync({})
+      const coords = await getCurrentPosition()
+      const body: Record<string, unknown> = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      }
+      if (earlyCheckoutReason.trim()) {
+        body.early_checkout_reason = earlyCheckoutReason.trim()
+      }
+      const result = await checkOut.mutateAsync(body)
+      setEarlyCheckoutOpen(false)
       toast.success(`Checked out. Total: ${formatHours(result.total_hours)}`)
       refetch()
     } catch (e: unknown) {
@@ -61,51 +99,85 @@ export function CheckInOutCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-base">
-          <span>Today</span>
-          {checkedIn && today?.check_in_time && (
-            <span className="text-sm font-normal text-muted-foreground">
-              {new Date(today.check_in_time).toLocaleTimeString('en-IN', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-              {checkedOut && today?.check_out_time && ` — ${new Date(today.check_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
-              {!checkedOut && ' — In progress'}
-              {today.total_hours != null && ` (${formatHours(today.total_hours)})`}
-            </span>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between text-base">
+            <span>Today</span>
+            {checkedIn && today?.check_in_time && (
+              <span className="text-sm font-normal text-muted-foreground">
+                {new Date(today.check_in_time).toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                {checkedOut && today?.check_out_time && ` — ${new Date(today.check_out_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`}
+                {!checkedOut && ' — In progress'}
+                {today.total_hours != null && ` (${formatHours(today.total_hours)})`}
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {lateWarning && (
+            <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                ⚠️ Late marks this month: {lateWarning.count}/{lateWarning.threshold}. One more will trigger a leave deduction.
+              </span>
+              <button className="ml-auto font-medium hover:underline" onClick={() => setLateWarning(null)}>Dismiss</button>
+            </div>
           )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col sm:flex-row flex-wrap gap-3">
-        <Button
-          size="lg"
-          disabled={checkedIn || checkIn.isPending || isWFH}
-          onClick={handleCheckIn}
-        >
-          {checkIn.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />}
-          Check In
-        </Button>
-        <Button
-          size="lg"
-          variant="outline"
-          disabled={!checkedIn || checkedOut || checkOut.isPending}
-          onClick={handleCheckOut}
-        >
-          {checkOut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
-          Check Out
-        </Button>
-        <Button
-          size="lg"
-          variant="secondary"
-          disabled={checkedIn || isWFH || logWFH.isPending}
-          onClick={handleLogWFH}
-        >
-          {logWFH.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Home className="mr-2 h-4 w-4" />}
-          {isWFH ? 'WFH Logged' : 'Log WFH'}
-        </Button>
-      </CardContent>
-    </Card>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+            <Button
+              size="lg"
+              disabled={checkedIn || checkIn.isPending || isWFH}
+              onClick={handleCheckIn}
+            >
+              {checkIn.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />}
+              Check In
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              disabled={!checkedIn || checkedOut || checkOut.isPending}
+              onClick={handleCheckOutClick}
+            >
+              {checkOut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
+              Check Out
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              disabled={checkedIn || isWFH || logWFH.isPending}
+              onClick={handleLogWFH}
+            >
+              {logWFH.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Home className="mr-2 h-4 w-4" />}
+              {isWFH ? 'WFH Logged' : 'Log WFH'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={earlyCheckoutOpen} onOpenChange={setEarlyCheckoutOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Early Checkout</DialogTitle>
+            <DialogDescription>
+              You are checking out before the shift ends. Please provide a reason.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Reason for early checkout..."
+            value={earlyCheckoutReason}
+            onChange={(e) => setEarlyCheckoutReason(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEarlyCheckoutOpen(false)}>Cancel</Button>
+            <Button onClick={handleCheckOutConfirm}>Confirm Checkout</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

@@ -16,6 +16,11 @@ export type EmployeeLifecycleEvent = Database['public']['Tables']['employee_life
 export type EmployeeOnboardingProgress = Database['public']['Tables']['employee_onboarding_progress']['Row']
 export type OnboardingChecklistTemplate = Database['public']['Tables']['onboarding_checklist_templates']['Row']
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row']
+export type Shift = Database['public']['Tables']['shifts']['Row']
+export type DepartmentShift = Database['public']['Tables']['department_shifts']['Row']
+export type EmployeeShiftOverride = Database['public']['Tables']['employee_shift_overrides']['Row']
+export type RegularizationRequest = Database['public']['Tables']['attendance_regularization_requests']['Row']
+export type Holiday = Database['public']['Tables']['holidays']['Row']
 
 // ─── Role ─────────────────────────────────────────────────────────────────────
 export type Role = Employee['role']
@@ -33,13 +38,15 @@ export type CheckInResponse = {
   check_in_time: string
   is_late: boolean
   is_geo_flagged: boolean
+  status?: string | null
+  late_count_this_month?: number
+  late_threshold?: number
 }
 
 export type CheckOutResponse = {
   attendance_record_id: string
   check_out_time: string
   total_hours: number
-  overtime_hours: number
   is_geo_flagged: boolean
 }
 
@@ -80,7 +87,7 @@ export type EmployeeWithRelations = Employee & {
 
 export type LeaveApplicationWithRelations = LeaveApplication & {
   leave_type: LeaveType
-  employee: Pick<Employee, 'id' | 'first_name' | 'last_name' | 'employee_code'>
+  employee?: Pick<Employee, 'id' | 'first_name' | 'last_name' | 'employee_code'> | null
 }
 
 export type EmployeeDocumentWithPresignedUrl = EmployeeDocument & {

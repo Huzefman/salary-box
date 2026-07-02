@@ -21,162 +21,252 @@ If a rule isn't in your current context, read the relevant doc above before
 inventing an answer.
 
 ## Current status — UPDATE THIS EVERY SESSION
-Last updated: 2026-06-18
+Last updated: 2026-06-29
 Active branch: experiment-new-agent
-Current session: M3 Phase 1 + Phase 2 + Phase 3 complete — all 10 Attendance
-Edge Functions implemented and deployed, plus employee self-service frontend
-(CheckInOutCard, AttendanceCalendar, AttendanceSummaryCards, Dashboard wired,
-RegularizationPage). M1 + M2 still 100% complete.
+Current session: Resend SMTP configured + site_url updated to production. Password
+reset emails now go through Resend (noreply@hr.fitmantra.co.in) and link to
+https://salary-box-sigma.vercel.app. Verified end-to-end: Resend API + password
+reset via Supabase Auth SMTP both confirmed working (tested with non-scet.ac.in
+email). Remaining: fix migration naming conflict, re-seed reference data,
+reconcile origin/main, deploy frontend to Vercel.
 
 ### M2 — Complete Feature Set
-- **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header. Exports
-  filtered list with all relevant columns.
-- **M2-2 Onboarding Checklist CRUD:** `SettingsOnboardingPage.tsx` with add/
-  edit/deactivate/reactivate dialog for `onboarding_checklist_templates`.
-- **M2-3 App Configuration:** `AppConfigPage.tsx` with inline editable key-value
-  table (Owner only).
-- **M2-4 Add Employee Steps 3 & 4:** Expanded NewEmployeePage from 2 steps to 4 —
-  Personal Info, Job Details, Documents (optional file upload), Bank Details
-  (optional account info). Post-creation success dialog shows temp password.
-- **M2-5 Bank Details Edit:** "Edit/Add" button (Owner only) on
-  EmployeeBankDetailsTab with dialog for account holder, number, IFSC, bank name.
-  Uses direct Supabase upsert.
-- **M2-6 Advanced Filters:** Department and employment status dropdowns on
-  EmployeesPage with All/Active/Probation/Resigned/Terminated/Future Joiner.
-- **M2-7 access-revocation cron:** Deployed. Queries employees where
-  `exit_date = today AND is_active = true`, deactivates, deletes auth account.
-- **M2-8 exit-date-alert cron:** Deployed. Queries employees where
-  `exit_date = today + 7`, creates in-app notifications for Owner/HR/System Admin.
-- **M2-9 future-joiner-activation cron:** Deployed. Queries employees where
-  `employment_status = 'future_joiner' AND join_date = today`, sets to active,
-  notifies Owner/HR.
+- **M2-1 CSV Export:** "Download CSV" button on EmployeesPage header
+- **M2-2 Onboarding Checklist CRUD:** `SettingsOnboardingPage.tsx`
+- **M2-3 App Configuration:** `AppConfigPage.tsx`
+- **M2-4 Add Employee Steps 3 & 4:** 4-step NewEmployeePage creation flow
+- **M2-5 Bank Details Edit:** Owner-only edit dialog
+- **M2-6 Advanced Filters:** Department/employment status dropdowns
+- **M2-7 to M2-9:** 3 cron functions (access-revocation, exit-date-alert, future-joiner-activation)
+- **Activity Timeline:** `EmployeeActivityTab.tsx`
+- **Org Chart:** `/org-chart` page with recursive tree
+- **Profile Edit Requests:** Full self-service flow with approve/reject
 
-### M2 — Remaining Features (built in previous session)
+### M3 Phase 1 — Attendance Backend
+- **5 shared utilities:** `geo.ts`, `ip.ts`, `holiday.ts`, `attendance.ts`, `shift.ts`
+- **10 Edge Functions deployed:** check-in, check-out, log-wfh, auto-checkout,
+  compute-attendance-status, manual-attendance, submit-regularization,
+  review-regularization, late-mark-deduction, incomplete-attendance-reminder
+- **`_shared/attendance.ts`** rewritten: no overtime, `computeTotalHours` accepts
+  `capAt`, `computeStatus` half-day = check-in ≥20min after shift start,
+  no-checkout → absent
 
-**Activity Timeline** — New "Activity" tab on employee detail page (Owner/HR).
-Queries `audit_logs` for the employee and renders a vertical timeline with
-action icons, field-level diffs on updates, actor name + role, and timestamps.
-(`src/features/employees/components/EmployeeActivityTab.tsx`)
+### M3 Phase 2 — Regularization & Notifications
+- `submit-regularization`, `review-regularization` Edge Functions
+- `late-mark-deduction`, `incomplete-attendance-reminder` cron functions
 
-**Org Chart** — `/org-chart` page accessible from sidebar (Owner/HR). Recursive
-tree view built from `reporting_manager_id`. Shows avatar, name, code, role
-badge. All nodes link to employee detail. (`src/pages/OrgChartPage.tsx`)
+### M3 Phase 3 — Employee Self-Service Frontend
+- `CheckInOutCard`, `AttendanceSummaryCards`, `AttendanceCalendar`
+- `AttendancePage`, `DashboardPage`, `RegularizationPage` wired
 
-**Profile Edit Requests** — Full employee self-service flow:
-- `profile_edit_requests` table (migration `0012`) with RLS: employee inserts own
-  requests, Owner/HR reads all and updates (approve/reject).
-- `review-profile-edit` Edge Function — Owner/HR approves (applies changes via
-  `update` on `employees` table using service role) or rejects.
-- Employee sees "Request Edit" button on own profile → dialog with editable
-  fields (phone, personal_email, address, emergency contact) → submits pending
-  request.
-- HR/Owner sees "Profile Edits" sidebar link → `/employees/profile-edits` review
-  page with approve/reject buttons and optional reviewer notes.
-- (`src/pages/ProfileEditReviewsPage.tsx`,
-  `src/features/employees/mutations.ts` — `useSubmitProfileEdit`,
-  `useReviewProfileEdit`)
+### M3 Phase 4 — Admin Attendance Frontend
+- `TeamAttendancePage` (grid + CSV export)
+- `EmployeeAttendanceDrillDownPage` (manual entry dialog)
+- `ShiftsPage` (CRUD + dept/employee assignments)
+- `RegularizationPage` admin queue (tabs: Pending Reviews + My Requests)
+- Mobile responsive sidebar with hamburger toggle
 
-### Cleanup Performed (previous session)
-- **Hard deleted EMP-0005–0008** (Abc Def, xyz a, Xyz a, coffee@gmail.com):
-  removed auth accounts via GoTrue Admin API (`DELETE /auth/v1/admin/users/{id}`),
-  deleted 26 audit_log rows, then deleted employee rows. Removed `deactivate-
-  employee` and `reactivate-employee` Edge Functions (undeployed + files deleted).
-  4 legitimate employees remain (EMP-0001–0004).
+### M3 Phase 5 — IP Whitelist, Geofence & Geolocation Wiring
+- **IPWhitelistPage** (`/settings/ip-whitelist`): CRUD for CIDR ranges (label, cidr, is_active)
+- **GeofencePage** (`/settings/geofence`): CRUD for geofence locations with
+  Leaflet map — click to place center, drag to adjust, radius slider with live
+  circle overlay (`GeofenceMapPicker` component)
+- **Geolocation**: `CheckInOutCard` and `DashboardPage` now call
+  `navigator.geolocation.getCurrentPosition()` before check-in/check-out,
+  passing real lat/lng to Edge Functions
 
-### M3 Phase 1 — Attendance Backend (built this session)
-
-**4 shared utilities (`supabase/functions/_shared/`):**
-- `geo.ts` — `haversineDistance`, `checkGeofence` (GPS vs geofence_config),
-  `checkDrift` (>50km between check-in/out)
-- `ip.ts` — `checkIpWhitelist` (client IP vs `ip_whitelist` CIDR ranges)
-- `holiday.ts` — `isHoliday` (checks `holidays` + `employee_optional_holidays`),
-  `isWeeklyOff` (from shift's `weekly_off_days`)
-- `attendance.ts` — `computeTotalHours` (BR-ATT-05), `computeOvertime` (BR-ATT-07),
-  `computeIsLate` (BR-ATT-06), `computeStatus` (BR-ATT-04 all 9 steps)
-
-**6 Edge Functions deployed (Phase 1):**
-| Function | Type | Key logic |
+### M4 — Leave Module (completed this session)
+**16 Edge Functions deployed:**
+| Function | Role | Key logic |
 |---|---|---|
-| `check-in` | Client (owner/hr/employee) | IP whitelist → GPS geofence → shift resolution → upsert server-timestamped record → late mark |
-| `check-out` | Client (owner/hr/employee) | Find today's record → verify not already done → compute hours/overtime → GPS drift check |
-| `log-wfh` | Client (owner/hr/employee) | Upsert `is_wfh=true` for today, reject if `on_leave`, don't touch `check_in_time` |
-| `auto-checkout` | Cron (23:59 daily) | Close incomplete records → set `check_out_time` from `app_config.auto_checkout_time` → notify each employee |
-| `compute-attendance-status` | Cron (00:05 daily) | Recompute yesterday's status/total_hours/overtime/is_late per BR-ATT-04 for all records |
-| `manual-attendance` | Client (owner/hr) | Upsert past record with provided check_in/out, compute all fields server-side, `is_manually_entered=true` |
+| `submit-leave` | owner/hr/employee | BR-LVE-01 to 07, 13, 15-17: gender, notice, working days, overlap, balance, attachment, escalation |
+| `review-leave` | owner/hr | Approve → balance taken += wd, attendance on_leave; Reject → reverse pending |
+| `cancel-leave` | owner/hr/employee | Pending only, reverses pending hold |
+| `request-leave-cancellation` | owner/hr/employee | Approved future leaves only, notifies admins |
+| `confirm-leave-cancellation` | owner/hr | Confirm → cancel + reverse taken/attendance (future dates); Reject → reset flag |
+| `submit-comp-off` | owner/hr/employee | Validates holiday/weekly-off |
+| `review-comp-off` | owner/hr | Approve → expiry date + balance accrual |
+| `opt-in-holiday` | owner/hr/employee | Validates optional + future + yearly limit |
+| `opt-out-holiday` | owner/hr/employee | Checks no approved leave on date |
+| `monthly-leave-accrual` | cron | Credits accrual_days/12 per leave type |
+| `year-end-leave-rollover` | cron | Carry-forward + new year rows |
+| `leave-sla-escalation` | cron | Escalates stale pending leaves to Owner |
+| `carry-forward-expiry-alert` | cron | 30/7 day alerts |
+| `carry-forward-lapse` | cron | Lapses expired carry-forward |
+| `comp-off-expiry-alert` | cron | 7 day alert |
+| `comp-off-lapse` | cron | Lapses expired comp-off balances |
 
-**4 Edge Functions deployed (Phase 2):**
-| Function | Type | Key logic |
-|---|---|---|
-| `submit-regularization` | Client (employee/owner/hr) | Fetch attendance record → validate within regularization_window_days → check no pending request → insert request → notify admins |
-| `review-regularization` | Client (owner/hr) | Validate request status → if approve: update attendance record with requested values, recompute hours/is_late → notify employee |
-| `late-mark-deduction` | Cron (monthly 1st) | Count is_late=true per employee in previous month → if count >= late_mark_threshold → deduct 0.5 from CL/EL/LWP balance |
-| `incomplete-attendance-reminder` | Cron (09:00 daily) | Query yesterday's incomplete records → send in-app notification to each employee |
-
-**DB changes:**
-- Verified `is_default` column on `shifts` (already existed)
-- Seeded "General Shift" as default (09:00–18:00, Sun off, 15 min grace, 3 late-mark threshold)
-- Created `idx_shifts_default` unique partial index via Management API
-
-### M3 Phase 3 — Employee Self-Service Frontend (built this session)
-
-**3 new components (`src/features/attendance/components/`):**
+**12 frontend components built (`src/features/leave/components/`):**
 | Component | What it does |
 |---|---|
-| `CheckInOutCard` | Check-in/check-out/WFH buttons with loading states, today's status display, calls Edge Functions via mutations |
-| `AttendanceSummaryCards` | 6 stat cards per month: Present, Absent, WFH, Late, On Leave, Half Day |
-| `AttendanceCalendar` | Month selector, colour-coded day grid, legend + click-to-view day detail dialog (times, hours, overtime, flags) |
+| `ApplyLeaveForm` | Full form with leave type selector, date range, half-day toggle, balance display, insufficient balance warning |
+| `LeaveBalanceSummary` | Color-coded per-type balance cards (green/yellow/red) |
+| `LeaveApplicationList` | Clickable table/card list with status badges |
+| `LeaveApplicationDetail` | Full detail with cancel/request-cancellation/ReviewActions |
+| `ReviewActions` | Approve/Reject button pair with comment dialog |
+| `PendingLeaveQueue` | Admin queue — tabs: pending leaves + cancellation requests |
+| `PendingCancellationQueue` | Admin confirm/reject cancellations |
+| `TeamLeaveCalendar` | Month grid: rows=employees, cells=colour-coded leaves |
+| `CompOffForm` | Worked date + hours form |
+| `LeaveTypeList` + `LeaveTypeForm` | CRUD for leave types (owner only) |
+| `HolidayList` | Holiday calendar, opt-in/out for optional holidays, CRUD dialog |
+| `LeaveBalanceReport` | Report grid: employees × leave types |
 
-**Updated pages:**
-- `AttendancePage.tsx` — Composes all 3 components with month navigation, `/attendance` route
-- `DashboardPage.tsx` — Employee view: wired Check In/Check Out/WFH buttons to real Edge Function calls with toast feedback
-- `RegularizationPage.tsx` — Full page with new request dialog (status, check-in/out, reason) + request history list with status badges
+**8 pages wired (from TODO stubs):**
+`LeaveDashboardPage`, `ApplyLeavePage`, `LeaveApplicationDetailPage`,
+`TeamLeavePage` (tabs: queue + calendar), `LeaveTypesPage`, `CompOffPage`,
+`HolidayCalendarPage`, `ReportsLeavePage`
 
-**Updated feature files:**
-- `api.ts` — Added `fetchRegularizationHistory`, `fetchAppConfig`
-- `hooks.ts` — Added `useMyAttendanceCurrentMonth`, `useRegularizationHistory`, `useAppConfig`
-- `mutations.ts` — Fixed coords type to `{ latitude?: number; longitude?: number }` for empty-object calls
+**Feature layer updates:**
+- `api.ts` — added `fetchCancellationRequests`, `fetchCompOffRequests`, `fetchHolidays`, `fetchMyOptionalHolidays`
+- `hooks.ts` — added 5 corresponding hooks
+- `mutations.ts` — added `useSubmitCompOff`, `useReviewCompOff`, `useOptInHoliday`, `useOptOutHoliday`
+- `types/index.ts` — added `Holiday`, `CompOffRequest` exports; made `employee` optional in `LeaveApplicationWithRelations`
 
-### DB schema changes (cumulative)
-- `profile_edit_requests` table added (migration `0012_create_profile_edit_requests`)
-- `shifts.is_default` (already existed from scaffold)
-- Types regenerated (`src/types/database.types.ts`)
+### Dark Mode / Theme Toggle (this session)
+- **`src/main.tsx`**: Wrapped app with `<ThemeProvider>` from `next-themes` (already installed)
+- **`src/components/layout/Header.tsx`**: Replaced direct sign-out button with a
+  dropdown menu panel — shows avatar initials + employee info, Light/Dark/System
+  theme options (with active highlight), and Sign Out with LogOut icon
+
+### Bugs Fixed
+- **working-days.ts + holiday.ts**: Removed `.eq('is_active', true)` on `holidays` table (table has no `is_active` column)
+- **LeaveTypeForm**: Fixed blank screen on dialog open — Radix Select crashes with empty string `""` values; changed default to `"all"`, mapped back to `null` on save
+- **Join syntax**: Supabase FK joins throughout
+- **Geolocation wiring**: CheckInOutCard and Dashboard now pass real coords
+
+### This session — Geofence Enforcement & M4 Polish
+- **Geofence hard-block**: `check-in` EF now rejects non-owner users who are outside any active geofence zone (403 FORBIDDEN). Location permission denial/timeout also blocked for non-owner.
+- **HolidayList bugs fixed**: Empty state now shows "Add Holiday" button for admin/HR; three early returns consolidated so dialogs (Add/Edit/Delete) are always in the DOM.
+- **opt-in-holiday fixed**: Insert was missing `year` column causing NOT NULL constraint violation.
+- **`sync-holiday-attendance` EF created**: When holidays are added/edited/deleted, attendance records for affected dates are synced (absent→holiday, holiday removed→incomplete).
+- **TeamAttendancePage**: Now fetches `holidays` table and shows holiday-colored cells for future dates even without attendance records.
+- **AttendanceCalendar**: Shows holiday-colored cells for future holiday dates.
+- **All 16 M4 Edge Functions deployed**: Previously only implemented locally, now fully deployed.
+- **upload-leave-attachment EF**: New function for uploading leave attachments to storage, returns `storage_path`.
+- **ApplyLeaveForm**: Added file upload with paperclip button, file picker, upload spinner, filename display, clear button.
+- **submit-leave redeployed**: Was missing from deployed list despite deploy command reporting success.
+- **compute-attendance-status + incomplete-attendance-reminder redeployed**: Both also missing.
+
+### This session — `update-app-config` EF & `uuid_generate_v5` fix
+- **`update-app-config` EF kept failing** with `INTERNAL_ERROR` / "Failed to update configuration"
+- **Root cause found**: The `log_changes` trigger function is SECURITY DEFINER with `search_path=public`, but `uuid_generate_v5()` (from uuid-ossp extension) lives in the `extensions` schema → every UPDATE/DELETE on `app_config` crashed with `42883: function uuid_generate_v5(uuid, text) does not exist`
+- **Fix**: Created `public.uuid_generate_v5(namespace uuid, name text)` wrapper delegating to `extensions.uuid_generate_v5()`. Applied via migration `0014_fix_uuid_ossp_search_path.sql` (applied via Management API SQL query)
+- **Result**: `update-app-config` EF now works end-to-end — verified with valid input (`leave_sla_business_days` → `5` returned `{key, value}`) and invalid key returned `VALIDATION_ERROR`
+
+### M5 — Reports & Polish (completed this session)
+**5 reports pages implemented:**
+| Page | Route | Key features |
+|---|---|---|
+| `ReportsAttendancePage` | `/reports/attendance` | Role-aware: Owner/HR see monthly summary table with dept filter + CSV export; Employee sees self-attendance day-by-day table with summary cards |
+| `ReportsHeadcountPage` | `/reports/headcount` | Filters for department, status (active/probation/resigned/terminated), type (full-time/part-time/contractor/intern) + summary cards + CSV export |
+| `ReportsRegularizationPage` | `/reports/regularization` | Date range, department, and status filters; table with employee, date (via attendance_records join), reason, reviewer; CSV export |
+| `ReportsHeatmapPage` | `/reports/heatmap` | Monthly grid: departments × days, color-coded by attendance % (green→red); month navigation; avg % column |
+| `SettingsNotificationsPage` | `/settings/notifications` | Editable list of all 6 `app_config` keys with type-specific inputs (boolean dropdown, text, time), saves via `update-app-config` EF |
+
+**Feature layer (`src/features/reports/`):**
+- `api.ts` — 6 query functions: `fetchAttendanceReport`, `fetchHeatmapData`, `fetchHeadcountReport`, `fetchRegularizationLog`, `fetchSelfAttendance`, `fetchDepartments` — all with typed return types
+- `hooks.ts` — React Query wrappers for all API functions
+- `utils.ts` — shared `downloadCSV(headers, rows, filename)` utility
+
+### This session — Cron Scheduling & Weekly Off UI Fix
+- **All 15 cron functions scheduled** via `pg_cron` + `pg_net` (enabled extensions, stored
+  project URL + anon key in Vault). Previously only deployed but unscheduled — now run
+  daily at appropriate IST hours via Management API SQL.
+- **Migration `0015_schedule_cron_functions.sql`** saved for version control.
+- **Weekly off day UI fix**: `AttendanceCalendar`, `TeamAttendancePage`, and
+  `fetchSelfAttendance` (ReportsAttendancePage) now fetch the default shift's
+  `weekly_off_days` and mark Sundays as `weekly_off` (gray) instead of hiding them
+  or showing as absent. Applied to employee calendar, team grid, and self-report.
+
+### This session — Resend Transactional Email Configuration
+- **RESEND_API_KEY stored** in Supabase project secrets — `sendEmail` now works across all EFs
+- **`_shared/email.ts`** — default `from` address updated to `noreply@hr.fitmantra.co.in`
+- **Password reset**: Configure Resend SMTP in Supabase Dashboard → Auth → Settings → SMTP (host: `smtp.resend.com`, port: `587`, credentials = API key)
+- **17 EFs updated + deployed** with transactional email alongside in-app notifications:
+
+| EF | Who gets emailed | Trigger |
+|---|---|---|
+| `future-joiner-activation` | Employee | Welcome on activation day |
+| `create-employee` | Employee | Welcome with temp password (was already built) |
+| `review-leave` | Employee | Approve/reject notification |
+| `review-regularization` | Employee | Approve/reject notification |
+| `review-comp-off` | Employee | Approve/reject notification |
+| `confirm-leave-cancellation` | Employee | Cancellation confirmed/rejected |
+| `auto-checkout` | Employee | Auto-checkout with regularization prompt |
+| `incomplete-attendance-reminder` | Employee | Yesterday's attendance incomplete |
+| `late-mark-deduction` | Employee | 0.5 day deducted from leave balance |
+| `submit-regularization` | HR/Owner | New regularization request |
+| `submit-leave` | HR/Owner | New leave application |
+| `request-leave-cancellation` | HR/Owner | Cancellation requested |
+| `carry-forward-expiry-alert` | Employee | 30/7 day expiry warning |
+| `comp-off-expiry-alert` | Employee | 7 day expiry warning |
+| `leave-sla-escalation` | Owner | SLA breached on pending leave |
+| `exit-date-alert` | HR/Owner/Admin | Exit date in 7 days |
+| `probation-end-alert` | Owner | Probation ending in 14 days |
+| `access-revocation` | HR/Owner | Employee access revoked |
+
+### This session — Final Polish: Leave Balance UI, Year-End Reset, Absenteeism, Cleanup
+- **4 stale cron functions unscheduled**: `monthly-leave-accrual`, `year-end-leave-rollover`, `carry-forward-expiry-alert`, `carry-forward-lapse` — all removed from `cron.job` via Management API SQL. Migration `0018_unschedule_stale_cron_functions.sql` created for version control.
+- **HR Leave Balance Edit Page** (`/settings/leave-balances`): New settings page for owner/hr to view all employees' leave balances in a table with inline-editable `opening_balance` and `adjusted` columns per leave type. Features scrollable table, loading/empty/error states, and "Year-End Reset" button (owner-only with confirmation dialog).
+- **Year-End Reset EF** (`supabase/functions/year-end-reset/`): Manual-trigger Edge Function that carries forward remaining balances (`opening + adjusted - taken - pending`) for each employee × leave type pair into the next year's `opening_balance`. Resets taken/pending/adjusted/accrued to 0. Idempotent via `onConflict: 'employee_id, leave_type_id, year'`. Returns `{ created, year }`.
+- **Absenteeism tab** on `ReportsAttendancePage`: Tab-switcher view showing employees sorted by absence rate, color-coded (green <10%, yellow 10-25%, red >25%) with CSV export.
+- **Employee leave self-view** on `ReportsLeavePage`: Employees now see "My Leave Balances" summary cards instead of full report; owner/hr see existing LeaveBalanceReport.
+- **Migration naming conflict fixed**: Deleted superseded `0010_fix_employee_self_update_is_first_login.sql` (only `0010_fix_enforce_employee_update_service_role` was applied remotely). All 18 migrations (0001–0018) registered in `supabase_migrations.schema_migrations`.
+- **DB types regenerated**: Clean without `node.exe` warning.
+- **TypeScript clean**: `tsc --noEmit` passes with zero errors.
+
+### This session — Attendance Business Rules Overhaul
+- **Grace period removed**: Any check-in after 10:00 is late (was 20min grace).
+- **Half-day deadline**: Check-in ≥10:21 → `half_day` status (was based on hours worked).
+- **Early checkout**: Check-out before shift end requires `early_checkout_reason` (400 if missing).
+  HR/Owner can approve (keep status) or reject (set `absent`).
+- **Overtime removed entirely**: `computeOvertime`/`computeOvertimeFromShift` deleted.
+  `total_hours` capped at shift end via `capAt` parameter in `computeTotalHours`.
+- **Auto-checkout shift-aware**: Resolves each employee's shift, sets check-out at
+  end time + buffer (30min default from `app_config` key `auto_checkout_buffer_minutes`).
+  Status = `absent` (not `incomplete`).
+- **No checkout → absent**: `computeStatus` returns `absent` when `check_out_time` is null
+  (was `incomplete`). Still regularizable.
+- **Migration `0016_early_checkout.sql`**: Adds `early_checkout_reason` (text) and
+  `early_checkout_status` (text, check: pending/approved/rejected) to `attendance_records`.
+- **Early Checkouts tab**: New tab in `RegularizationPage` — lists pending early checkouts
+  with approve/reject buttons. Approve keeps status; reject sets `absent`.
+- **Late count warning**: `CheckInOutCard` shows warning banner when approaching
+  late threshold (`late_count_this_month` / `late_threshold`).
+- **6 EFs redeployed**: `check-in`, `check-out`, `auto-checkout`, `compute-attendance-status`,
+  `manual-attendance`, `review-regularization` — all with updated business rules.
+- **Typecheck + lint clean**: `database.types.ts` regenerated via `supabase gen types`.
+
+### Remaining items
+1. Re-seed `departments`, `designations`, `shifts` reference data via UI
+2. Reconcile `origin/main` with local scaffold state (it reverted to pre-scaffold on GitHub)
+3. Deploy frontend to Vercel (if not already deployed)
 
 ### Edge Functions Deployed (cumulative)
 - M1/M2: `add-lifecycle-event`, `upload-document`, `generate-presigned-url`,
   `bulk-import-employees`, `update-employee`, `create-employee`,
   `access-revocation`, `exit-date-alert`, `future-joiner-activation`,
-  `review-profile-edit`
+  `review-profile-edit`, `update-app-config`, `probation-end-alert`
 - **M3:** `check-in`, `check-out`, `log-wfh`, `auto-checkout`,
   `compute-attendance-status`, `manual-attendance`,
   `submit-regularization`, `review-regularization`,
   `late-mark-deduction`, `incomplete-attendance-reminder`
+- **M4:** `submit-leave`, `review-leave`, `cancel-leave`,
+  `request-leave-cancellation`, `confirm-leave-cancellation`,
+  `submit-comp-off`, `review-comp-off`, `opt-in-holiday`, `opt-out-holiday`,
+  `upload-leave-attachment`,
+  `monthly-leave-accrual`, `year-end-leave-rollover`, `leave-sla-escalation`,
+  `carry-forward-expiry-alert`, `carry-forward-lapse`, `comp-off-expiry-alert`,
+  `comp-off-lapse`, `sync-holiday-attendance`
 
 ### Known issues
-- `origin/main` (fitmantramarketing-sys/salary-box on GitHub) was
-  reverted to a pre-scaffold state by a PR merge from `upstream/main`
-  (`04bbe85`, "Merge pull request #1 from Huzefman/main") — it currently does
-  NOT have the scaffold. Local `main`/`dev`/`feature/auth-rbac` and
-  `origin/feature/auth-rbac` all have the full scaffold and are correct.
-  Do not push local `main` to `origin/main` without reconciling this — resolve
-  when `dev` merges into `main` at milestone completion.
-- RESEND_API_KEY not configured in Supabase project secrets → welcome email
-  silently fails (non-fatal try/catch).
-- Supabase Auth project setting `mailer_allow_unverified_email_sign_ins` set to
-  `true` — required because `admin.createUser({ email_confirm: true })` wasn't
-  confirming emails when `mailer_autoconfirm` was `false`. Function also calls
-  `admin.updateUserById(id, { email_confirm: true })` as defense-in-depth.
-- Migration naming conflict: two `0010_*` files (first superseded by second).
-  Both applied via `supabase db query`, CLI history out of sync with remote.
-  Run `supabase migration repair` to reconcile.
-- 7 cron functions deployed but schedules not configured in Supabase Dashboard:
-  access-revocation (23:55 IST), exit-date-alert (09:15 IST),
-  future-joiner-activation (00:01 IST), auto-checkout (23:59 IST),
-  compute-attendance-status (00:05 IST), late-mark-deduction (monthly 1st 00:10 IST),
-  incomplete-attendance-reminder (09:00 IST).
-- Geolocation not wired in frontend — CheckInOutCard and Dashboard check-in/out
-  buttons call Edge Functions with empty coords. Needs
-  `navigator.geolocation.getCurrentPosition()` integration to pass lat/lng for
-  geofence validation.
+- `origin/main` on GitHub reverted to pre-scaffold state — local branches correct
+- Auth setting `mailer_allow_unverified_email_sign_ins = true` required
+- Migration naming conflict: two `0010_*` files — run `supabase migration repair`
+- All `departments`, `designations`, `shifts` rows hard deleted — re-seed via UI
+- Resend SMTP still needs to be configured in Supabase Dashboard Auth settings for password reset emails
+- Frontend may need to be re-deployed to Vercel for latest changes to be live
 
 ## Supabase project access (for agents)
 This repo has a project-scoped Supabase MCP server configured in `.mcp.json`,
@@ -195,8 +285,8 @@ the `mcp__supabase__*` tools give direct access to project
 - `execute_sql` — ad-hoc queries for inspection/debugging only. Don't use it
   for schema changes that should be migrations.
 - `generate_typescript_types` — regenerate `src/types/database.types.ts`
-  after schema changes. The current generator (PostgrestVersion 14.5) already
-  includes `Relationships: [...]` per table automatically.
+  after schema changes. (Use `npx supabase gen types typescript --project-id <id> > src/types/database.types.ts`
+  locally since CLI isn't installed; or use `npm run types:gen`.)
 
 If the MCP server isn't connected in a session, say so and fall back to
 writing the migration SQL for the user to apply.

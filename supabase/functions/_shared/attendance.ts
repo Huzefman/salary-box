@@ -4,10 +4,20 @@ export function computeTotalHours(
   checkIn: string,
   checkOut: string,
   breakMinutes: number,
-  isNightShift: boolean
+  isNightShift: boolean,
+  capAt: string | null = null
 ): number {
   const inTime = new Date(checkIn).getTime()
   let outTime = new Date(checkOut).getTime()
+
+  if (capAt) {
+    const capTime = new Date(checkIn)
+    const [ch, cm] = capAt.split(':').map(Number)
+    capTime.setHours(ch, cm, 0, 0)
+    if (outTime > capTime.getTime()) {
+      outTime = capTime.getTime()
+    }
+  }
 
   if (isNightShift && outTime < inTime) {
     outTime += 24 * 60 * 60 * 1000
@@ -17,33 +27,6 @@ export function computeTotalHours(
   const diffHours = diffMs / (1000 * 60 * 60)
   const hours = Math.max(0, diffHours - breakMinutes / 60)
   return Math.round(hours * 100) / 100
-}
-
-export function computeOvertime(totalHours: number, shift: ShiftInfo): number {
-  const shiftStart = parseTime(shift.start_time)
-  const shiftEnd = parseTime(shift.end_time)
-  let shiftWorkingHours = shiftEnd - shiftStart
-  if (shiftWorkingHours < 0) shiftWorkingHours += 24
-  const breakHours = (shift.total_hours - (shiftEnd - shiftStart)) > 0 ? 0 : 0
-  // shift.total_hours in ShiftInfo is the precomputed shift working hours
-  const workingHours = shiftWorkingHours - (60 / 60)
-  // Actually, ShiftInfo.total_hours is the shift's total_hours from schema perspective
-  // Let's use the actual shift hours from shift metadata
-  const shiftHours = shift.total_hours > 0 ? shift.total_hours : shiftWorkingHours
-  return Math.max(0, Math.round((totalHours - shiftHours) * 100) / 100)
-}
-
-export function computeOvertimeFromShift(
-  totalHours: number,
-  shiftStart: string,
-  shiftEnd: string,
-  breakMinutes: number
-): number {
-  const start = parseTime(shiftStart)
-  let end = parseTime(shiftEnd)
-  if (end < start) end += 24
-  const shiftHours = Math.max(0, end - start - breakMinutes / 60)
-  return Math.max(0, Math.round((totalHours - shiftHours) * 100) / 100)
 }
 
 export function computeIsLate(
@@ -69,7 +52,6 @@ export type AttendanceRecordForCompute = {
   is_wfh: boolean
   status: string
   total_hours?: number | null
-  overtime_hours?: number | null
   is_late: boolean
   is_manually_entered: boolean
 }
@@ -82,72 +64,71 @@ export function computeStatus(
 ): {
   status: string
   total_hours: number | null
-  overtime_hours: number | null
   is_late: boolean
 } {
   if (record.status === 'on_leave') {
-    return {
-      status: 'on_leave',
-      total_hours: record.total_hours,
-      overtime_hours: record.overtime_hours,
-      is_late: record.is_late,
-    }
+    return { status: 'on_leave', total_hours: record.total_hours, is_late: record.is_late }
   }
 
   if (holidayFlag) {
-    return { status: 'holiday', total_hours: null, overtime_hours: null, is_late: false }
+    return { status: 'holiday', total_hours: null, is_late: false }
   }
 
   if (weeklyOffFlag) {
-    return { status: 'weekly_off', total_hours: null, overtime_hours: null, is_late: false }
+    return { status: 'weekly_off', total_hours: null, is_late: false }
   }
 
   if (record.is_wfh && !record.check_in_time) {
-    return { status: 'work_from_home', total_hours: null, overtime_hours: null, is_late: false }
+    return { status: 'work_from_home', total_hours: null, is_late: false }
   }
 
+  // No check-in → absent
   if (!record.check_in_time) {
-    return { status: 'absent', total_hours: null, overtime_hours: null, is_late: false }
+    return { status: 'absent', total_hours: null, is_late: false }
   }
 
-  if (record.check_in_time && !record.check_out_time) {
-    return {
-      status: 'incomplete',
-      total_hours: record.total_hours,
-      overtime_hours: record.overtime_hours,
-      is_late: record.is_late,
-    }
+  // Minutes past shift start (negative = before shift)
+  const checkIn = new Date(record.check_in_time)
+  const startToday = new Date(record.check_in_time)
+  const [sh, sm] = shift.start_time.split(':').map(Number)
+  startToday.setHours(sh, sm, 0, 0)
+  const diffMin = (checkIn.getTime() - startToday.getTime()) / (1000 * 60)
+
+  const isLate = checkIn.getTime() > startToday.getTime()
+
+  // Compute total_hours if check-out exists
+  let totalHours: number | null = null
+  if (record.check_out_time) {
+    totalHours = computeTotalHours(
+      record.check_in_time,
+      record.check_out_time,
+      shift.break_minutes,
+      shift.is_night_shift,
+      shift.end_time
+    )
   }
 
-  const totalHours = record.total_hours ?? computeTotalHours(
-    record.check_in_time!,
-    record.check_out_time!,
-    0,
-    false
-  )
-  const shiftHours = shift.total_hours || (() => {
-    const start = parseTime(shift.start_time)
-    let end = parseTime(shift.end_time)
-    if (end < start) end += 24
-    return end - start
-  })()
+  // Rules:
+  //   Before shift start  → present
+  //   0–5 min after start → present + late
+  //   5–20 min after      → half_day + late
+  //   >20 min after       → absent + late
 
-  if (totalHours < shiftHours / 2) {
-    return { status: 'half_day', total_hours: totalHours, overtime_hours: 0, is_late: false }
+  if (diffMin <= 0) {
+    const s = record.is_wfh ? 'work_from_home' : 'present'
+    return { status: s, total_hours: totalHours, is_late: false }
   }
 
-  if (record.is_wfh && totalHours >= shiftHours / 2) {
-    return { status: 'work_from_home', total_hours: totalHours, overtime_hours: 0, is_late: record.is_late }
+  if (diffMin <= 5) {
+    const s = record.is_wfh ? 'work_from_home' : 'present'
+    return { status: s, total_hours: totalHours, is_late: true }
   }
 
-  const overtime = computeOvertimeFromShift(totalHours, shift.start_time, shift.end_time, 0)
-
-  return {
-    status: 'present',
-    total_hours: totalHours,
-    overtime_hours: overtime,
-    is_late: record.is_late,
+  if (diffMin <= 20) {
+    return { status: 'half_day', total_hours: totalHours, is_late: true }
   }
+
+  return { status: 'absent', total_hours: totalHours, is_late: true }
 }
 
 export function parseTime(time: string): number {

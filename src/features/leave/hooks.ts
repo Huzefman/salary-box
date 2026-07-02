@@ -5,7 +5,10 @@ import {
   fetchMyLeaveBalances,
   fetchMyLeaveApplications,
   fetchPendingLeaveApplications,
+  fetchCancellationRequests,
   fetchLeaveApplication,
+  fetchHolidays,
+  fetchMyOptionalHolidays,
 } from './api'
 
 export function useLeaveTypes() {
@@ -40,10 +43,32 @@ export function usePendingLeaveApplications() {
   })
 }
 
+export function useCancellationRequests() {
+  return useQuery({
+    queryKey: ['leave', 'cancellations'],
+    queryFn: fetchCancellationRequests,
+  })
+}
+
 export function useLeaveApplication(id: string) {
   return useQuery({
     queryKey: ['leave', 'applications', 'detail', id],
     queryFn: () => fetchLeaveApplication(id),
     enabled: !!id,
+  })
+}
+export function useHolidays(year?: number) {
+  return useQuery({
+    queryKey: ['leave', 'holidays', year],
+    queryFn: () => fetchHolidays(year),
+  })
+}
+
+export function useMyOptionalHolidays() {
+  const employeeId = useAuthStore((s) => s.employee?.id)
+  return useQuery({
+    queryKey: ['leave', 'optional-holidays', employeeId],
+    queryFn: () => fetchMyOptionalHolidays(employeeId!),
+    enabled: !!employeeId,
   })
 }

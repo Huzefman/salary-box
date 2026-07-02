@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import type { AttendanceRecord } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,7 +36,20 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMonth }: Props) {
   const [selectedDay, setSelectedDay] = useState<AttendanceRecord | null>(null)
-  const [showAll, setShowAll] = useState(false)
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set())
+  const [weeklyOffDays, setWeeklyOffDays] = useState<number[]>([0])
+
+  useEffect(() => {
+    const from = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate()
+    const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    supabase.from('holidays').select('date').gte('date', from).lte('date', to).then(({ data }) => {
+      setHolidayDates(new Set((data ?? []).map((h) => h.date)))
+    })
+    supabase.from('shifts').select('weekly_off_days').eq('is_default', true).limit(1).then(({ data }) => {
+      if (data && data.length > 0) setWeeklyOffDays(data[0].weekly_off_days)
+    })
+  }, [year, month])
 
   const daysInMonth = new Date(year, month, 0).getDate()
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay()
@@ -63,7 +77,6 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
               <Button variant="ghost" size="icon" onClick={onPrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              {!showAll && <Button variant="ghost" size="icon" onClick={() => setShowAll(true)}>All</Button>}
               <Button variant="ghost" size="icon" onClick={onNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -71,22 +84,21 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-2">
+          <div className="grid grid-cols-7 border rounded-md overflow-hidden">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-              <div key={d} className="py-1">{d}</div>
+              <div key={d} className="border-b border-r bg-muted/50 px-1 py-1.5 text-center text-xs font-medium text-muted-foreground">{d}</div>
             ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-              <div key={`empty-${i}`} />
+              <div key={`empty-${i}`} className="border-b border-r aspect-square" />
             ))}
             {days.map((day) => {
               const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
               const record = recordMap.get(dateStr)
               const rawStatus = record?.status as string | undefined
-              const status = rawStatus ?? (showAll ? 'absent' : null)
-
-              if (!status) return <div key={day} className="aspect-square" />
+              const dayOfWeek = new Date(year, month - 1, day).getDay()
+              const isHoliday = !rawStatus && holidayDates.has(dateStr)
+              const isWeeklyOff = !rawStatus && !isHoliday && weeklyOffDays.includes(dayOfWeek)
+              const status = isWeeklyOff ? 'weekly_off' : (isHoliday ? 'holiday' : (rawStatus ?? null))
 
               return (
                 <button
@@ -118,15 +130,20 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
                     updated_at: '',
                   } as AttendanceRecord)}
                   className={cn(
-                    'aspect-square rounded-md text-xs flex items-center justify-center text-white font-medium transition-colors',
-                    STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-400'
+                    'aspect-square border-b border-r flex items-center justify-center text-xs font-medium transition-colors',
+                    status ? STATUS_COLORS[status] : 'hover:bg-accent'
                   )}
-                  title={status}
+                  title={status ? getAttendanceStatusLabel(status as AttendanceStatus) : dateStr}
                 >
-                  {day}
+                  <span className="text-foreground">
+                    {day}
+                  </span>
                 </button>
               )
             })}
+            {Array.from({ length: (7 - (firstDayOfWeek + daysInMonth) % 7) % 7 }).map((_, i) => (
+              <div key={`trailing-${i}`} className="border-b border-r aspect-square" />
+            ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {(Object.keys(STATUS_COLORS) as AttendanceStatus[]).map((s) => (
@@ -167,14 +184,10 @@ export function AttendanceCalendar({ records, year, month, onPrevMonth, onNextMo
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="rounded border p-2">
                   <p className="text-xs text-muted-foreground">Total Hours</p>
                   <p className="font-medium">{formatHours(selectedDay.total_hours)}</p>
-                </div>
-                <div className="rounded border p-2">
-                  <p className="text-xs text-muted-foreground">Overtime</p>
-                  <p className="font-medium">{formatHours(selectedDay.overtime_hours)}</p>
                 </div>
                 <div className="rounded border p-2">
                   <p className="text-xs text-muted-foreground">Late</p>

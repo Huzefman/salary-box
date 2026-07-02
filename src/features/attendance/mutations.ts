@@ -15,8 +15,8 @@ export function useCheckIn() {
 export function useCheckOut() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (coords?: { latitude?: number; longitude?: number }) =>
-      callEdgeFunction<object, CheckOutResponse>('check-out', coords ?? {}),
+    mutationFn: (body: Record<string, unknown>) =>
+      callEdgeFunction<object, CheckOutResponse>('check-out', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['attendance'] }),
   })
 }

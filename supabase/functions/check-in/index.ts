@@ -25,14 +25,43 @@ Deno.serve(async (req: Request) => {
     const supabase = getServiceClient()
     const shift = await resolveShift(actor.actorId, today)
 
-    let isGeoFlagged = false
-    if (latitude != null && longitude != null) {
+    // Geofence enforcement — hard block if outside any active geofence
+    // Owner bypasses for flexibility
+    if (actor.actorRole !== 'owner') {
+      if (latitude == null || longitude == null) {
+        throw { code: 'LOCATION_REQUIRED', message: 'Location access is required for check-in. Please enable GPS.', status: 403 }
+      }
       const geoCheck = await checkGeofence(Number(latitude), Number(longitude))
-      if (!geoCheck.inside) isGeoFlagged = true
+      if (!geoCheck.inside) {
+        throw { code: 'FORBIDDEN', message: 'Check-in location is outside the allowed geofence area.', status: 403 }
+      }
     }
 
+    let isGeoFlagged = false
+
     const now = new Date().toISOString()
-    const isLate = computeIsLate(now, shift.start_time, shift.grace_period_minutes)
+
+    // Late if check-in > shift start (no grace)
+    const isLate = computeIsLate(now, shift.start_time, 0)
+
+    // Determine status from minutes past shift start:
+    //   0–5 min → present + late        (keep null, computeStatus sets present)
+    //   5–20 min → half_day + late
+    //   >20 min → absent + late
+    let status: string | null = null
+    if (isLate) {
+      const checkInDate = new Date(now)
+      const [sh, sm] = shift.start_time.split(':').map(Number)
+      const shiftStartToday = new Date(now)
+      shiftStartToday.setHours(sh, sm, 0, 0)
+      const diffMin = (checkInDate.getTime() - shiftStartToday.getTime()) / (1000 * 60)
+
+      if (diffMin > 5 && diffMin <= 20) {
+        status = 'half_day'
+      } else if (diffMin > 20) {
+        status = 'absent'
+      }
+    }
 
     const { data: existing } = await supabase
       .from('attendance_records')
@@ -45,6 +74,16 @@ Deno.serve(async (req: Request) => {
       throw { code: 'CONFLICT', message: 'Already checked in today.', status: 409 }
     }
 
+    // Get late count this month for frontend warning
+    const monthStart = today.slice(0, 7) + '-01'
+    const { count: lateCount } = await supabase
+      .from('attendance_records')
+      .select('*', { count: 'exact', head: true })
+      .eq('employee_id', actor.actorId)
+      .eq('is_late', true)
+      .gte('date', monthStart)
+      .lt('date', today)
+
     const payload: Record<string, unknown> = {
       employee_id: actor.actorId,
       date: today,
@@ -54,13 +93,14 @@ Deno.serve(async (req: Request) => {
       is_late: isLate,
       is_geo_flagged: isGeoFlagged,
     }
+    if (status) payload.status = status
     if (latitude != null) payload.check_in_lat = Number(latitude)
     if (longitude != null) payload.check_in_lng = Number(longitude)
 
     const { data: record, error } = await supabase
       .from('attendance_records')
       .upsert(payload, { onConflict: 'employee_id, date', ignoreDuplicates: false })
-      .select('id, check_in_time, is_late, is_geo_flagged')
+      .select('id, check_in_time, is_late, is_geo_flagged, status')
       .single()
 
     if (error) throw error
@@ -70,6 +110,9 @@ Deno.serve(async (req: Request) => {
       check_in_time: record.check_in_time,
       is_late: record.is_late,
       is_geo_flagged: record.is_geo_flagged,
+      status: record.status,
+      late_count_this_month: (lateCount ?? 0) + (isLate ? 1 : 0),
+      late_threshold: shift.late_mark_threshold,
     })
   } catch (e) {
     return handleError(e)

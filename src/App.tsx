@@ -22,11 +22,11 @@ import EditEmployeePage from '@/pages/EditEmployeePage'
 import BulkImportPage from '@/pages/BulkImportPage'
 import AttendancePage from '@/pages/AttendancePage'
 import TeamAttendancePage from '@/pages/TeamAttendancePage'
+import EmployeeAttendanceDrillDownPage from '@/pages/EmployeeAttendanceDrillDownPage'
 import RegularizationPage from '@/pages/RegularizationPage'
 import LeaveDashboardPage from '@/pages/LeaveDashboardPage'
 import ApplyLeavePage from '@/pages/ApplyLeavePage'
 import LeaveApplicationDetailPage from '@/pages/LeaveApplicationDetailPage'
-import CompOffPage from '@/pages/CompOffPage'
 import TeamLeavePage from '@/pages/TeamLeavePage'
 import HolidayCalendarPage from '@/pages/HolidayCalendarPage'
 import DepartmentsPage from '@/pages/DepartmentsPage'
@@ -38,6 +38,7 @@ import IPWhitelistPage from '@/pages/IPWhitelistPage'
 import GeofencePage from '@/pages/GeofencePage'
 import SettingsNotificationsPage from '@/pages/SettingsNotificationsPage'
 import SettingsOnboardingPage from '@/pages/SettingsOnboardingPage'
+import SettingsLeaveBalancesPage from '@/pages/SettingsLeaveBalancesPage'
 import EmployeeSelfProfilePage from '@/pages/EmployeeSelfProfilePage'
 import ProfileEditReviewsPage from '@/pages/ProfileEditReviewsPage'
 import ReportsAttendancePage from '@/pages/ReportsAttendancePage'
@@ -45,6 +46,9 @@ import ReportsLeavePage from '@/pages/ReportsLeavePage'
 import ReportsHeadcountPage from '@/pages/ReportsHeadcountPage'
 import ReportsRegularizationPage from '@/pages/ReportsRegularizationPage'
 import ReportsHeatmapPage from '@/pages/ReportsHeatmapPage'
+import ReportsHomePage from '@/pages/ReportsHomePage'
+import RolesPage from '@/pages/RolesPage'
+import AuditLogsPage from '@/pages/AuditLogsPage'
 
 export default function App() {
   const { setAuth, clearAuth, setLoading, setPasswordRecovery } = useAuthStore()
@@ -165,6 +169,7 @@ export default function App() {
               <Route path="/attendance" element={<AttendancePage />} />
               <Route element={<RequireRole allow={['owner', 'hr']} />}>
                 <Route path="/attendance/team" element={<TeamAttendancePage />} />
+                <Route path="/attendance/:employeeId" element={<EmployeeAttendanceDrillDownPage />} />
               </Route>
               <Route path="/attendance/regularization" element={<RegularizationPage />} />
 
@@ -172,7 +177,6 @@ export default function App() {
               <Route path="/leave" element={<LeaveDashboardPage />} />
               <Route path="/leave/apply" element={<ApplyLeavePage />} />
               <Route path="/leave/applications/:id" element={<LeaveApplicationDetailPage />} />
-              <Route path="/leave/comp-off/request" element={<CompOffPage />} />
               <Route element={<RequireRole allow={['owner', 'hr']} />}>
                 <Route path="/leave/team" element={<TeamLeavePage />} />
               </Route>
@@ -196,6 +200,10 @@ export default function App() {
               <Route element={<RequireRole allow={['owner']} />}>
                 <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
                 <Route path="/settings/onboarding-checklist" element={<SettingsOnboardingPage />} />
+                <Route path="/settings/roles" element={<RolesPage />} />
+              </Route>
+              <Route element={<RequireRole allow={['owner', 'hr']} />}>
+                <Route path="/settings/leave-balances" element={<SettingsLeaveBalancesPage />} />
               </Route>
 
               {/* Employee self-profile */}
@@ -205,6 +213,9 @@ export default function App() {
               </Route>
 
               {/* Reports */}
+              <Route element={<RequireRole allow={['owner', 'hr', 'employee', 'system_admin']} />}>
+                <Route path="/reports" element={<ReportsHomePage />} />
+              </Route>
               <Route element={<RequireRole allow={['owner', 'hr', 'employee']} />}>
                 <Route path="/reports/attendance" element={<ReportsAttendancePage />} />
               </Route>
@@ -217,6 +228,11 @@ export default function App() {
               <Route element={<RequireRole allow={['owner']} />}>
                 <Route path="/reports/regularization" element={<ReportsRegularizationPage />} />
                 <Route path="/reports/heatmap" element={<ReportsHeatmapPage />} />
+              </Route>
+
+              {/* Audit Logs */}
+              <Route element={<RequireRole allow={['owner', 'system_admin']} />}>
+                <Route path="/audit-logs" element={<AuditLogsPage />} />
               </Route>
             </Route>
           </Route>

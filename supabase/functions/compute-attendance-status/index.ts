@@ -3,13 +3,9 @@ import { getServiceClient } from '../_shared/supabase.ts'
 import { resolveShift } from '../_shared/shift.ts'
 import { isHoliday, isWeeklyOff } from '../_shared/holiday.ts'
 import {
-  computeTotalHours,
-  computeOvertimeFromShift,
-  computeIsLate,
   computeStatus,
   type AttendanceRecordForCompute,
 } from '../_shared/attendance.ts'
-import type { ShiftInfo } from '../_shared/shift.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
@@ -19,78 +15,85 @@ Deno.serve(async (req: Request) => {
 
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
 
-    const { data: records } = await supabase
-      .from('attendance_records')
-      .select('*')
-      .eq('date', yesterday)
+    // Fetch all active employees (not just those with existing records)
+    const { data: employees } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('is_active', true)
 
-    if (!records || records.length === 0) {
+    if (!employees || employees.length === 0) {
       return ok({ processed: 0 })
     }
 
     let processed = 0
-    for (const record of records) {
-      const rec: AttendanceRecordForCompute = {
-        id: record.id,
-        employee_id: record.employee_id,
-        date: record.date,
-        shift_id: record.shift_id,
-        check_in_time: record.check_in_time,
-        check_out_time: record.check_out_time,
-        is_wfh: record.is_wfh,
-        status: record.status,
-        total_hours: record.total_hours,
-        overtime_hours: record.overtime_hours,
-        is_late: record.is_late,
-        is_manually_entered: record.is_manually_entered,
-      }
-
-      let shift: ShiftInfo
+    for (const emp of employees) {
+      let shift
       try {
-        shift = await resolveShift(record.employee_id, yesterday)
+        shift = await resolveShift(emp.id, yesterday)
       } catch {
         continue
       }
 
-      const holidayFlag = await isHoliday(record.employee_id, yesterday)
+      const holidayFlag = await isHoliday(emp.id, yesterday)
       const woffFlag = isWeeklyOff(shift, yesterday)
 
-      const totalHours = rec.check_in_time && rec.check_out_time
-        ? computeTotalHours(
-            rec.check_in_time,
-            rec.check_out_time,
-            shift.break_minutes,
-            shift.is_night_shift
-          )
-        : null
+      // Skip non-working days (no record needed)
+      if (holidayFlag || woffFlag) continue
 
-      const overtimeHours = totalHours != null
-        ? computeOvertimeFromShift(totalHours, shift.start_time, shift.end_time, shift.break_minutes)
-        : null
-
-      const isLate = rec.check_in_time
-        ? computeIsLate(rec.check_in_time, shift.start_time, shift.grace_period_minutes)
-        : false
-
-      const result = computeStatus(
-        { ...rec, total_hours: totalHours ?? rec.total_hours, is_late: isLate },
-        shift,
-        holidayFlag,
-        woffFlag
-      )
-
-      const { error: updateError } = await supabase
+      // Check for existing attendance record
+      const { data: existing } = await supabase
         .from('attendance_records')
-        .update({
-          total_hours: result.total_hours,
-          overtime_hours: result.overtime_hours,
-          is_late: result.is_late,
-          is_geo_flagged: record.is_geo_flagged,
-          status: result.status,
-        })
-        .eq('id', record.id)
+        .select('*')
+        .eq('employee_id', emp.id)
+        .eq('date', yesterday)
+        .maybeSingle()
 
-      if (!updateError) processed++
+      if (existing) {
+        // Update existing record with computed status
+        const rec: AttendanceRecordForCompute = {
+          id: existing.id,
+          employee_id: existing.employee_id,
+          date: existing.date,
+          shift_id: existing.shift_id,
+          check_in_time: existing.check_in_time,
+          check_out_time: existing.check_out_time,
+          is_wfh: existing.is_wfh,
+          status: existing.status,
+          total_hours: existing.total_hours,
+          is_late: existing.is_late,
+          is_manually_entered: existing.is_manually_entered,
+        }
+
+        const result = computeStatus(rec, shift, holidayFlag, woffFlag)
+
+        const { error: updateError } = await supabase
+          .from('attendance_records')
+          .update({
+            total_hours: result.total_hours,
+            is_late: result.is_late,
+            is_geo_flagged: existing.is_geo_flagged,
+            status: result.status,
+          })
+          .eq('id', existing.id)
+
+        if (!updateError) processed++
+      } else {
+        // No record → create absent
+        const { error: insertError } = await supabase
+          .from('attendance_records')
+          .insert({
+            employee_id: emp.id,
+            date: yesterday,
+            shift_id: shift.id,
+            status: 'absent',
+            total_hours: null,
+            is_late: false,
+            is_wfh: false,
+            is_manually_entered: false,
+          })
+
+        if (!insertError) processed++
+      }
     }
 
     return ok({ processed })

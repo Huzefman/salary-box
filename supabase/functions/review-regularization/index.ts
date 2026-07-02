@@ -2,8 +2,9 @@ import { getActor, assertRole } from '../_shared/auth.ts'
 import { ok, cors, handleError } from '../_shared/response.ts'
 import { getServiceClient } from '../_shared/supabase.ts'
 import { resolveShift } from '../_shared/shift.ts'
-import { computeTotalHours, computeOvertimeFromShift, computeIsLate } from '../_shared/attendance.ts'
+import { computeTotalHours, computeIsLate } from '../_shared/attendance.ts'
 import { createNotification } from '../_shared/notify.ts'
+import { sendEmail } from '../_shared/email.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return cors()
@@ -35,20 +36,31 @@ Deno.serve(async (req: Request) => {
       throw { code: 'CONFLICT', message: 'This request has already been reviewed.', status: 409 }
     }
 
+    const { data: employee } = await supabase
+      .from('employees')
+      .select('email')
+      .eq('id', reqRecord.employee_id)
+      .single()
+
     const now = new Date().toISOString()
 
     if (action === 'approve') {
+      // Fetch existing attendance record for date and current times
       const { data: attRecord } = await supabase
         .from('attendance_records')
-        .select('date')
+        .select('id, date, check_in_time, check_out_time')
         .eq('id', reqRecord.attendance_record_id)
         .single()
 
       if (!attRecord) {
-        throw { code: 'NOT_FOUND', message: 'Linked attendance record not found.', status: 404 }
+        throw { code: 'NOT_FOUND', message: 'Attendance record not found.', status: 404 }
       }
 
       const shift = await resolveShift(reqRecord.employee_id, attRecord.date)
+
+      // Effective times: requested overrides existing
+      const effectiveCheckIn = reqRecord.requested_check_in ?? attRecord.check_in_time
+      const effectiveCheckOut = reqRecord.requested_check_out ?? attRecord.check_out_time
 
       const updates: Record<string, unknown> = {}
 
@@ -56,30 +68,34 @@ Deno.serve(async (req: Request) => {
         updates.status = reqRecord.requested_status
       }
 
-      const checkIn = reqRecord.requested_check_in
-      const checkOut = reqRecord.requested_check_out
-
-      if (checkIn) {
-        updates.check_in_time = checkIn
-        updates.is_late = computeIsLate(checkIn, shift.start_time, shift.grace_period_minutes)
+      if (reqRecord.requested_check_in) {
+        updates.check_in_time = reqRecord.requested_check_in
       }
 
-      if (checkOut) {
-        updates.check_out_time = checkOut
+      if (reqRecord.requested_check_out) {
+        updates.check_out_time = reqRecord.requested_check_out
       }
 
-      if (checkIn && checkOut) {
-        updates.total_hours = computeTotalHours(checkIn, checkOut, shift.break_minutes, shift.is_night_shift)
-        updates.overtime_hours = computeOvertimeFromShift(
-          updates.total_hours as number,
-          shift.start_time,
-          shift.end_time,
-          shift.break_minutes
+      // Recompute derived fields
+      if (effectiveCheckIn) {
+        updates.is_late = computeIsLate(effectiveCheckIn, shift.start_time, 0)
+      }
+
+      if (effectiveCheckIn && effectiveCheckOut) {
+        updates.total_hours = computeTotalHours(
+          effectiveCheckIn,
+          effectiveCheckOut,
+          shift.break_minutes,
+          shift.is_night_shift,
+          shift.end_time
         )
-        updates.is_manually_entered = true
-        updates.manual_entry_by = actor.actorId
-        updates.manual_entry_reason = 'Regularized via request'
+      } else {
+        updates.total_hours = null
       }
+
+      updates.is_manually_entered = true
+      updates.manual_entry_by = actor.actorId
+      updates.manual_entry_reason = 'Regularized via request'
 
       const { error: attError } = await supabase
         .from('attendance_records')
@@ -111,6 +127,22 @@ Deno.serve(async (req: Request) => {
       referenceId: request_id,
       referenceTable: 'attendance_regularization_requests',
     })
+
+    try {
+      await sendEmail({
+        to: employee.email,
+        subject: action === 'approve' ? 'Regularization Approved' : 'Regularization Rejected',
+        html: `
+          <h2>Regularization Request ${action === 'approve' ? 'Approved' : 'Rejected'}</h2>
+          <p>Your regularization request has been ${action === 'approve' ? 'approved' : 'rejected'}.</p>
+          ${comment ? `<p><strong>Reviewer Note:</strong> ${comment}</p>` : ''}
+          <hr />
+          <p style="color: #666; font-size: 12px;">This is an automated message from the HR system.</p>
+        `,
+      })
+    } catch (emailErr) {
+      console.error('Regularization review email failed:', emailErr)
+    }
 
     return ok({
       request_id,

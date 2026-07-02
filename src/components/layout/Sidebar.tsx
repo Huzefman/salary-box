@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { NavLink, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { NavLink, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   X,
+  ClipboardList,
 } from 'lucide-react'
 import { useRole } from '@/hooks/useRole'
 import { cn } from '@/lib/utils'
@@ -61,21 +62,22 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Apply Leave', href: '/leave/apply', roles: ['owner', 'hr', 'employee'] },
       { label: 'Team Leave', href: '/leave/team', roles: ['owner', 'hr'] },
       { label: 'Holiday Calendar', href: '/leave/holidays', roles: ['owner', 'hr', 'employee'] },
-      { label: 'Comp-Off', href: '/leave/comp-off/request', roles: ['owner', 'hr', 'employee'] },
     ],
   },
-  {
-    label: 'Reports',
-    icon: BarChart3,
-    roles: ['owner', 'hr', 'system_admin'],
-    children: [
-      { label: 'Attendance Report', href: '/reports/attendance', roles: ['owner', 'hr'] },
+    {
+      label: 'Reports',
+      icon: BarChart3,
+      roles: ['owner', 'hr', 'system_admin'],
+      children: [
+        { label: 'Reports Home', href: '/reports', roles: ['owner', 'hr', 'system_admin'] },
+        { label: 'Attendance Report', href: '/reports/attendance', roles: ['owner', 'hr'] },
       { label: 'Leave Report', href: '/reports/leave', roles: ['owner', 'hr'] },
       { label: 'Headcount', href: '/reports/headcount', roles: ['owner', 'system_admin'] },
       { label: 'Regularization Log', href: '/reports/regularization', roles: ['owner'] },
       { label: 'Heatmap', href: '/reports/heatmap', roles: ['owner'] },
     ],
   },
+  { label: 'Audit Logs', href: '/audit-logs', icon: ClipboardList, roles: ['owner', 'system_admin'] },
   {
     label: 'Settings',
     icon: Settings,
@@ -89,7 +91,9 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Geofence', href: '/settings/geofence', roles: ['owner', 'system_admin'] },
       { label: 'Notifications', href: '/settings/notifications', roles: ['owner'] },
       { label: 'Onboarding', href: '/settings/onboarding-checklist', roles: ['owner'] },
+      { label: 'Role Management', href: '/settings/roles', roles: ['owner'] },
       { label: 'App Config', href: '/settings/app-config', roles: ['owner'] },
+      { label: 'Leave Balances', href: '/settings/leave-balances', roles: ['owner', 'hr'] },
     ],
   },
 ]
@@ -100,13 +104,13 @@ function EmployeeNav({ onItemClick }: { onItemClick?: () => void }) {
       <NavItem icon={LayoutDashboard} href="/dashboard" label="Dashboard" onClick={onItemClick} />
       <NavItem icon={User} href="/employees/me" label="My Profile" onClick={onItemClick} />
       <NavItem icon={Clock} href="/attendance" label="My Attendance" onClick={onItemClick} />
+      <NavItem icon={Clock} href="/attendance/regularization" label="Regularization" onClick={onItemClick} />
       <NavGroupItem
         icon={Calendar}
         label="My Leave"
         children={[
           { label: 'Apply Leave', href: '/leave/apply' },
           { label: 'Leave Dashboard', href: '/leave' },
-          { label: 'Comp-Off', href: '/leave/comp-off/request' },
           { label: 'Holiday Calendar', href: '/leave/holidays' },
         ]}
         onChildClick={onItemClick}
@@ -120,6 +124,7 @@ function NavItem({ icon: Icon, href, label, onClick }: { icon: React.ElementType
   return (
     <NavLink
       to={href}
+      end
       onClick={onClick}
       className={({ isActive }) =>
         cn(
@@ -149,13 +154,24 @@ function NavGroupItem({
   defaultOpen?: boolean
   onChildClick?: () => void
 }) {
-  const [open, setOpen] = useState(defaultOpen ?? false)
+  const location = useLocation()
+  const childActive = children.some((c) => location.pathname === c.href || location.pathname.startsWith(c.href + '/'))
+  const [open, setOpen] = useState(defaultOpen ?? childActive)
+
+  useEffect(() => {
+    if (childActive) setOpen(true)
+  }, [childActive])
 
   return (
     <div>
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className={cn(
+          'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+          childActive
+            ? 'bg-primary/10 text-primary font-medium'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+        )}
       >
         <Icon className="h-4 w-4 shrink-0" />
         <span className="flex-1 text-left">{label}</span>
@@ -167,6 +183,7 @@ function NavGroupItem({
             <NavLink
               key={child.href}
               to={child.href}
+              end
               onClick={onChildClick}
               className={({ isActive }) =>
                 cn(
@@ -225,7 +242,6 @@ export function Sidebar({ open, onClose }: Props) {
                 icon={group.icon}
                 label={group.label}
                 children={group.children.map((c) => ({ label: c.label, href: c.href }))}
-                defaultOpen={true}
                 onChildClick={onClose}
               />
             )

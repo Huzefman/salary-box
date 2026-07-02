@@ -12,14 +12,24 @@ import type {
   AuditLog,
 } from '@/types'
 
+async function fetchManagerName(emp: EmployeeWithRelations): Promise<void> {
+  if (emp.reporting_manager_id) {
+    const { data } = await supabase
+      .rpc('get_employee_name', { p_id: emp.reporting_manager_id })
+      .maybeSingle()
+    emp.reporting_manager = data ?? null
+  } else {
+    emp.reporting_manager = null
+  }
+}
+
 export async function fetchEmployees(): Promise<EmployeeWithRelations[]> {
   const { data, error } = await supabase
     .from('employees')
     .select(`
       *,
       department:departments!department_id(id, name),
-      designation:designations!designation_id(id, name),
-      reporting_manager:employees!reporting_manager_id(id, first_name, last_name)
+      designation:designations!designation_id(id, name)
     `)
     .eq('is_active', true)
     .order('first_name')
@@ -33,13 +43,15 @@ export async function fetchEmployee(id: string): Promise<EmployeeWithRelations |
     .select(`
       *,
       department:departments!department_id(id, name),
-      designation:designations!designation_id(id, name),
-      reporting_manager:employees!reporting_manager_id(id, first_name, last_name)
+      designation:designations!designation_id(id, name)
     `)
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
-  return data as unknown as EmployeeWithRelations | null
+  if (!data) return null
+  const emp = data as unknown as EmployeeWithRelations
+  await fetchManagerName(emp)
+  return emp
 }
 
 export async function fetchDepartments() {

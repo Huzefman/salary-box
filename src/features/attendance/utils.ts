@@ -1,3 +1,24 @@
+export function getCurrentPosition(): Promise<{ latitude: number; longitude: number }> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported by your browser.'))
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      (err) => {
+        const messages: Record<number, string> = {
+          [err.PERMISSION_DENIED]: 'Location access denied. Please enable GPS in your browser settings.',
+          [err.POSITION_UNAVAILABLE]: 'Location unavailable. Please move to an open area and try again.',
+          [err.TIMEOUT]: 'Location request timed out. Please try again.',
+        }
+        reject(new Error(messages[err.code] ?? 'Failed to get location.'))
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    )
+  })
+}
+
 import type { AttendanceStatus } from './types'
 
 export function getAttendanceStatusLabel(status: AttendanceStatus): string {

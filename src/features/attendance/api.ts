@@ -1,6 +1,20 @@
 import { supabase } from '@/lib/supabase'
 import type { AttendanceRecord } from '@/types'
 
+export async function fetchAttendanceRecordByDate(
+  employeeId: string,
+  date: string
+): Promise<AttendanceRecord | null> {
+  const { data, error } = await supabase
+    .from('attendance_records')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .eq('date', date)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 export async function fetchMyAttendance(
   employeeId: string,
   year: number,
